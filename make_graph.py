@@ -121,9 +121,7 @@ for _, row in df.iterrows():
             f"<b>{row['title']}</b><br>"
             f"🎤 {row['artist']}<br>"
             f"{album_line}"
-            f"🎸 {' / '.join(genres) if genres else '-'}<br>"
-            f"⚡ energy {energy} &nbsp; 🌟 brightness {brightness}<br>"
-            f"{mood_label}"
+            f"🎸 {' / '.join(genres) if genres else '-'}"
         ),
     })
 
@@ -269,10 +267,23 @@ html = f"""<!DOCTYPE html>
     border-radius:11px; padding:11px 15px; font-size:12.5px; line-height:1.7;
     max-width:280px; z-index:20; box-shadow:0 6px 24px rgba(0,0,0,0.7);
   }}
-  .sim-bar-wrap {{ margin-top:6px; }}
-  .sim-row {{ display:flex; align-items:center; gap:6px; margin:2px 0; font-size:11px; color:#aaa; }}
-  .sim-bar-bg {{ flex:1; height:5px; background:#222; border-radius:3px; }}
-  .sim-bar {{ height:5px; border-radius:3px; }}
+  #ranking {{
+    position:fixed; bottom:16px; right:16px; width:280px;
+    background:rgba(18,18,36,0.93); border:1px solid #2a2a4a;
+    border-radius:14px; padding:14px 18px; font-size:12px; z-index:10;
+    backdrop-filter:blur(6px); display:none;
+  }}
+  #ranking h3 {{ margin-bottom:10px; font-size:13px; color:#bbb; }}
+  #ranking .rank-item {{
+    display:flex; align-items:center; gap:8px; padding:4px 0;
+    border-bottom:1px solid #1e1e36; cursor:pointer;
+  }}
+  #ranking .rank-item:last-child {{ border-bottom:none; }}
+  #ranking .rank-item:hover {{ color:#fff; }}
+  #ranking .rank-num {{ color:#555; width:18px; text-align:right; flex-shrink:0; }}
+  #ranking .rank-title {{ flex:1; color:#ccc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }}
+  #ranking .rank-artist {{ color:#666; font-size:11px; flex-shrink:0; }}
+  #ranking .rank-sim {{ color:#aaddff; font-size:11px; width:32px; text-align:right; flex-shrink:0; }}
 
   #stats {{
     position:fixed; bottom:16px; left:16px; display:flex; align-items:center; gap:10px;
@@ -302,7 +313,7 @@ html = f"""<!DOCTYPE html>
 <!-- 범례 -->
 <div class="panel" id="legend">
   <h3>아티스트</h3>
-{legend_items}
+  <div id="legend-list"></div>
   <div class="legend-note">
     엣지 밝기 = 종합 유사도
   </div>
@@ -334,11 +345,13 @@ html = f"""<!DOCTYPE html>
 
 
 <div id="tooltip"></div>
+<div id="ranking"><h3 id="ranking-title"></h3><div id="ranking-list"></div></div>
 <div id="stats">노드: <b id="s-nodes">{len(nodes)}</b>  엣지: <b id="s-edges">{len(edges)}</b><button id="fit-btn">⊙ 화면 맞추기</button></div>
 
 <script>
 const RAW_NODES = {json.dumps(nodes, ensure_ascii=False)};
 const RAW_EDGES_BASE = {json.dumps(edges, ensure_ascii=False)};
+const ARTIST_COLORS = {json.dumps(ARTIST_COLORS, ensure_ascii=False)};
 
 // ── 색상 스케일: 유사도 0.35 ~ 1.0 → dim grey → bright gold ──
 const simColor = d3.scaleSequential()
@@ -366,25 +379,14 @@ let simulation = d3.forceSimulation()
 let linkSel, nodeSel;
 let displayedNodes = [], displayedEdges = [];
 
-// ── 유사도 바 HTML ────────────────────────────────────────────
-function simBarHTML(label, val) {{
-  const pct = Math.round(val * 100);
-  const color = d3.interpolateRdYlGn(val);
-  return `<div class="sim-row">
-    <span style="width:60px">${{label}}</span>
-    <div class="sim-bar-bg"><div class="sim-bar" style="width:${{pct}}%;background:${{color}}"></div></div>
-    <span style="width:28px;text-align:right;color:#ccc">${{pct}}%</span>
-  </div>`;
-}}
-
 // ── 메인 렌더 ─────────────────────────────────────────────────
-function update(nodes, edges, restart=true) {{
+function update(nodes, edges) {{
   displayedNodes = nodes;
-  displayedEdges = edges;
   const nodeMap    = new Map(nodes.map(n => [n.id, n]));
   const validEdges = edges
     .filter(e => nodeMap.has(e.source?.id ?? e.source) && nodeMap.has(e.target?.id ?? e.target))
     .map(e => ({{ ...e, source: e.source?.id ?? e.source, target: e.target?.id ?? e.target }}));
+  displayedEdges = validEdges;
 
   // 링크
   linkSel = linkLayer.selectAll("line")
@@ -400,13 +402,7 @@ function update(nodes, edges, restart=true) {{
       tooltip.style.display = "block";
       tooltip.innerHTML = `
         <b>${{na.label}}</b> ↔ <b>${{nb.label}}</b><br>
-        <span style="color:#aaddff;font-size:13px">종합 유사도: ${{Math.round(d.similarity*100)}}%</span>
-        <div class="sim-bar-wrap">
-          ${{simBarHTML("장르", d.genre_sim)}}
-          ${{simBarHTML("Energy", d.energy_sim)}}
-          ${{simBarHTML("Brightness", d.brightness_sim)}}
-          ${{simBarHTML("무드", d.mood_sim)}}
-        </div>`;
+        <span style="color:#aaddff;font-size:13px">종합 유사도: ${{Math.round(d.similarity*100)}}%</span>`;
     }})
     .on("mousemove", ev => {{
       tooltip.style.left = (ev.clientX + 14) + "px";
@@ -444,6 +440,8 @@ function update(nodes, edges, restart=true) {{
     .attr("dy", d => d.size + 12)
     .text(d => d.label.length > 14 ? d.label.slice(0,13) + "…" : d.label);
 
+  // 기존 위치 유지, 시뮬레이션 부드럽게 재시작
+  nodes.forEach(n => {{ n.fx = null; n.fy = null; }});
   simulation.nodes(nodes).on("tick", () => {{
     linkSel
       .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
@@ -451,13 +449,17 @@ function update(nodes, edges, restart=true) {{
     nodeSel.attr("transform", d => `translate(${{d.x}},${{d.y}})`);
   }});
   simulation.force("link").links(validEdges);
-  if (restart) simulation.alpha(0.3).restart();
+  simulation.alpha(0.15).restart();
 
   document.getElementById("s-nodes").textContent = nodes.length;
   document.getElementById("s-edges").textContent = validEdges.length;
 }}
 
 // ── 하이라이트 ───────────────────────────────────────────────
+const rankingPanel = document.getElementById("ranking");
+const rankingTitle = document.getElementById("ranking-title");
+const rankingList  = document.getElementById("ranking-list");
+
 let highlighted = null;
 function highlightNode(d, nodes, edges) {{
   if (highlighted === d.id) {{
@@ -466,14 +468,41 @@ function highlightNode(d, nodes, edges) {{
     nodeSel.select("text").style("opacity", null);
     linkSel.attr("stroke", e => simColor(e.similarity))
            .attr("stroke-opacity", e => 0.2 + e.similarity * 0.5);
+    rankingPanel.style.display = "none";
     return;
   }}
   highlighted = d.id;
   const connectedIds = new Set([d.id]);
+  const connectedEdges = [];
   edges.forEach(e => {{
     const s = e.source?.id ?? e.source, t = e.target?.id ?? e.target;
-    if (s === d.id) connectedIds.add(t);
-    if (t === d.id) connectedIds.add(s);
+    if (s === d.id) {{ connectedIds.add(t); connectedEdges.push({{ id: t, sim: e.similarity }}); }}
+    if (t === d.id) {{ connectedIds.add(s); connectedEdges.push({{ id: s, sim: e.similarity }}); }}
+  }});
+
+  // Top 10 유사곡 패널
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+  const top10 = connectedEdges.sort((a, b) => b.sim - a.sim).slice(0, 10);
+  rankingTitle.textContent = `${{d.label}} — 유사곡 Top ${{top10.length}}`;
+  rankingList.innerHTML = top10.map((item, i) => {{
+    const n = nodeMap.get(item.id);
+    if (!n) return "";
+    return `<div class="rank-item" data-id="${{item.id}}">
+      <span class="rank-num">${{i + 1}}</span>
+      <span class="rank-title">${{n.label}}</span>
+      <span class="rank-artist">${{n.artist.split(" (")[0]}}</span>
+      <span class="rank-sim">${{Math.round(item.sim * 100)}}%</span>
+    </div>`;
+  }}).join("");
+  rankingPanel.style.display = "block";
+
+  // 랭킹 항목 클릭 시 해당 노드 하이라이트
+  rankingList.querySelectorAll(".rank-item").forEach(el => {{
+    el.addEventListener("click", () => {{
+      const targetId = +el.dataset.id;
+      const target = displayedNodes.find(n => n.id === targetId);
+      if (target) highlightNode(target, displayedNodes, displayedEdges);
+    }});
   }});
   nodeSel.select("circle")
     .attr("opacity", n => connectedIds.has(n.id) ? 1 : 0.12)
@@ -495,18 +524,24 @@ function highlightNode(d, nodes, edges) {{
     const s = e.source?.id ?? e.source, t = e.target?.id ?? e.target;
     return s===d.id || t===d.id;
   }}).raise();
+
+  // 연결된 노드가 화면 밖일 수 있으므로 자동 화면 맞추기
+  fitView();
 }}
 
 // ── 드래그 ───────────────────────────────────────────────────
 function drag(sim) {{
   let dragging = false;
   return d3.drag()
-    .on("start", (e,d) => {{ dragging = false; d.fx=d.x; d.fy=d.y; }})
+    .on("start", (e,d) => {{ dragging = false; }})
     .on("drag",  (e,d) => {{
       if (!dragging) {{ dragging = true; if(!e.active) sim.alphaTarget(0.3).restart(); }}
       d.fx=e.x; d.fy=e.y;
     }})
-    .on("end",   (e,d) => {{ if(!e.active) sim.alphaTarget(0); if(!dragging) {{ d.fx=null; d.fy=null; }} }});
+    .on("end",   (e,d) => {{
+      if(!e.active) sim.alphaTarget(0);
+      d.fx=null; d.fy=null;
+    }});
 }}
 
 // ── 필터 ─────────────────────────────────────────────────────
@@ -518,6 +553,12 @@ function applyFilters() {{
   const filteredNodes = RAW_NODES.filter(n =>
     (checkedArtists.size === 0 || checkedArtists.has(n.artist))
   );
+
+  // 범례 업데이트: 현재 필터에 선택된 아티스트만 표시
+  const visibleArtists = [...new Set(filteredNodes.map(n => n.artist))];
+  document.getElementById("legend-list").innerHTML = visibleArtists
+    .map(a => `<div class="legend-item"><div class="legend-dot" style="background:${{ARTIST_COLORS[a] || '#AAAAAA'}}"></div>${{a.split(" (")[0]}}</div>`)
+    .join("");
   const filteredIds   = new Set(filteredNodes.map(n => n.id));
   const filteredEdges = RAW_EDGES_BASE.filter(e =>
     e.similarity >= minSim &&
@@ -525,22 +566,19 @@ function applyFilters() {{
   );
   const prevHighlighted = highlighted;
   highlighted = null;
-  // 기존 노드 위치 고정 — 필터로 노드가 바뀌어도 기존 노드는 움직이지 않음
-  const prevPositions = new Map(displayedNodes.map(n => [n.id, {{x: n.x, y: n.y}}]));
-  filteredNodes.forEach(n => {{
-    const pos = prevPositions.get(n.id);
-    if (pos) {{ n.fx = pos.x; n.fy = pos.y; }}  // 기존 노드: 위치 고정
-    else     {{ n.fx = null;  n.fy = null;  }}   // 새 노드: 자유 배치
-  }});
-  const changed = filteredNodes.length !== displayedNodes.length || filteredEdges.length !== displayedEdges.length;
-  update(filteredNodes, filteredEdges, changed);
-  // 고정 해제 (드래그는 별도로 fx/fy 관리하므로 짧게 후 해제)
-  setTimeout(() => {{
-    filteredNodes.forEach(n => {{ if (prevPositions.has(n.id)) {{ n.fx = null; n.fy = null; }} }});
-  }}, 600);
+  update(filteredNodes, filteredEdges);
   if (prevHighlighted != null) {{
     const target = displayedNodes.find(n => n.id === prevHighlighted);
-    if (target) highlightNode(target, displayedNodes, displayedEdges);
+    if (target) {{
+      highlightNode(target, displayedNodes, displayedEdges);
+    }} else {{
+      // 하이라이트된 노드가 필터에서 빠졌으면 전체뷰로 리셋
+      nodeSel.select("circle").attr("opacity", 1).style("stroke", null).style("stroke-width", null);
+      nodeSel.select("text").style("opacity", null);
+      linkSel.attr("stroke", e => simColor(e.similarity))
+             .attr("stroke-opacity", e => 0.2 + e.similarity * 0.5);
+      rankingPanel.style.display = "none";
+    }}
   }}
 }}
 
