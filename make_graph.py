@@ -499,10 +499,14 @@ function highlightNode(d, nodes, edges) {{
 
 // ── 드래그 ───────────────────────────────────────────────────
 function drag(sim) {{
+  let dragging = false;
   return d3.drag()
-    .on("start", (e,d) => {{ if(!e.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; }})
-    .on("drag",  (e,d) => {{ d.fx=e.x; d.fy=e.y; }})
-    .on("end",   (e,d) => {{ if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; }});
+    .on("start", (e,d) => {{ dragging = false; d.fx=d.x; d.fy=d.y; }})
+    .on("drag",  (e,d) => {{
+      if (!dragging) {{ dragging = true; if(!e.active) sim.alphaTarget(0.3).restart(); }}
+      d.fx=e.x; d.fy=e.y;
+    }})
+    .on("end",   (e,d) => {{ if(!e.active) sim.alphaTarget(0); if(!dragging) {{ d.fx=null; d.fy=null; }} }});
 }}
 
 // ── 필터 ─────────────────────────────────────────────────────
