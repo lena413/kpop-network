@@ -325,8 +325,19 @@ function applyFilters() {
   );
   const prevHighlighted = highlighted;
   highlighted = null;
+  // 기존 노드 위치 고정 — 필터로 노드가 바뀌어도 기존 노드는 움직이지 않음
+  const prevPositions = new Map(displayedNodes.map(n => [n.id, {x: n.x, y: n.y}]));
+  filteredNodes.forEach(n => {
+    const pos = prevPositions.get(n.id);
+    if (pos) { n.fx = pos.x; n.fy = pos.y; }  // 기존 노드: 위치 고정
+    else     { n.fx = null;  n.fy = null;  }   // 새 노드: 자유 배치
+  });
   const changed = filteredNodes.length !== displayedNodes.length || filteredEdges.length !== displayedEdges.length;
   update(filteredNodes, filteredEdges, changed);
+  // 고정 해제 (드래그는 별도로 fx/fy 관리하므로 짧게 후 해제)
+  setTimeout(() => {
+    filteredNodes.forEach(n => { if (prevPositions.has(n.id)) { n.fx = null; n.fy = null; } });
+  }, 600);
   if (prevHighlighted != null) {
     const target = displayedNodes.find(n => n.id === prevHighlighted);
     if (target) highlightNode(target, displayedNodes, displayedEdges);
