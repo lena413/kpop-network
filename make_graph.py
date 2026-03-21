@@ -187,13 +187,18 @@ if len(edges) > MAX_EDGES:
     edges = edges[:MAX_EDGES]
 print(f"nodes={len(nodes)}, edges={len(edges)} (threshold>={MIN_THRESHOLD}, cap={MAX_EDGES})")
 
-# ─── 아티스트 체크박스 HTML 사전 생성 ───────────────────────────
+# ─── 아티스트 체크박스 & 범례 HTML 사전 생성 ─────────────────────
+active_artists = [a for a in ARTIST_COLORS if a in df["artist"].values]
 artist_checkboxes = "\n".join(
     f'    <label class="check-item">'
     f'<input type="checkbox" class="artist-cb" value="{a}" checked>'
-    f'<span class="check-dot" style="background:{c}"></span>'
+    f'<span class="check-dot" style="background:{ARTIST_COLORS[a]}"></span>'
     f'{a.split(" (")[0]}</label>'
-    for a, c in ARTIST_COLORS.items()
+    for a in active_artists
+)
+legend_items = "\n".join(
+    f'  <div class="legend-item"><div class="legend-dot" style="background:{ARTIST_COLORS[a]}"></div>{a.split(" (")[0]}</div>'
+    for a in active_artists
 )
 
 # ─── HTML 생성 ────────────────────────────────────────────────
@@ -258,18 +263,6 @@ html = f"""<!DOCTYPE html>
   }}
   .vd {{ color:#6B9DFF; font-size:11px; }}
 
-  /* 가중치 슬라이더 */
-  #weights {{ bottom:16px; right:16px; width:210px; }}
-  #weights h3 {{ margin-bottom:10px; font-size:13px; color:#bbb; }}
-  .wrow {{ display:flex; align-items:center; gap:6px; margin-bottom:8px; font-size:11px; color:#aaa; }}
-  .wrow input {{ flex:1; accent-color:#FF6B9D; }}
-  .wval {{ width:26px; text-align:right; color:#FF6B9D; }}
-  #recalc-btn {{
-    width:100%; padding:7px; background:#1e1e42; border:1px solid #4a4a8a;
-    color:#9090dd; border-radius:8px; cursor:pointer; font-size:12px; margin-top:4px;
-  }}
-  #recalc-btn:hover {{ background:#2a2a5a; }}
-
   #tooltip {{
     position:fixed; pointer-events:none; display:none;
     background:rgba(12,12,28,0.97); border:1px solid #3a3a6a;
@@ -309,19 +302,7 @@ html = f"""<!DOCTYPE html>
 <!-- 범례 -->
 <div class="panel" id="legend">
   <h3>아티스트</h3>
-  <div class="legend-item"><div class="legend-dot" style="background:#FF6B9D"></div>NewJeans</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#6B9DFF"></div>투모로우바이투게더</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#9DFF6B"></div>연준</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#FFD700"></div>KATSEYE</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#FF9966"></div>IVE</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#BB8FCE"></div>범규</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#48C9B0"></div>Hearts2Hearts</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#F8C471"></div>KiiKii</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#DA70D6"></div>NMIXX</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#FF1493"></div>BLACKPINK</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#00E5FF"></div>aespa</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#FF8C42"></div>LE SSERAFIM</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#4FC3F7"></div>NCT DREAM</div>
+{legend_items}
   <div class="legend-note">
     엣지 밝기 = 종합 유사도
   </div>
@@ -351,15 +332,6 @@ html = f"""<!DOCTYPE html>
   </div>
 </div>
 
-<!-- 가중치 조정 -->
-<div class="panel" id="weights">
-  <h3>가중치 조정 (합산 후 재계산)</h3>
-  <div class="wrow">장르<input type="range" id="w-genre" min="0" max="1" value="0.4" step="0.05"><span class="wval" id="wv-genre">0.40</span></div>
-  <div class="wrow">Energy<input type="range" id="w-energy" min="0" max="1" value="0.2" step="0.05"><span class="wval" id="wv-energy">0.20</span></div>
-  <div class="wrow">Brightness<input type="range" id="w-brightness" min="0" max="1" value="0.2" step="0.05"><span class="wval" id="wv-brightness">0.20</span></div>
-  <div class="wrow">무드<input type="range" id="w-mood" min="0" max="1" value="0.2" step="0.05"><span class="wval" id="wv-mood">0.20</span></div>
-  <button id="recalc-btn">유사도 재계산</button>
-</div>
 
 <div id="tooltip"></div>
 <div id="stats">노드: <b id="s-nodes">{len(nodes)}</b>  엣지: <b id="s-edges">{len(edges)}</b><button id="fit-btn">⊙ 화면 맞추기</button></div>
@@ -367,30 +339,6 @@ html = f"""<!DOCTYPE html>
 <script>
 const RAW_NODES = {json.dumps(nodes, ensure_ascii=False)};
 const RAW_EDGES_BASE = {json.dumps(edges, ensure_ascii=False)};
-const GENRE_FAMILY = {json.dumps(GENRE_FAMILY, ensure_ascii=False)};
-const FAMILY_WEIGHT = {FAMILY_WEIGHT};
-
-// ── 장르 유사도 (family-augmented weighted Jaccard) ───────────
-function genreSimFn(ag, bg) {{
-  if (!ag.length || !bg.length) return 0;
-  function buildWeights(genres) {{
-    const w = {{}};
-    genres.forEach((g, i) => {{
-      w[g] = i === 0 ? 2 : 1;
-      const fam = GENRE_FAMILY[g];
-      if (fam) w[fam] = Math.max(w[fam] || 0, FAMILY_WEIGHT);
-    }});
-    return w;
-  }}
-  const wa = buildWeights(ag), wb = buildWeights(bg);
-  const all = new Set([...Object.keys(wa), ...Object.keys(wb)]);
-  let inter = 0, union = 0;
-  all.forEach(g => {{
-    inter += Math.min(wa[g] || 0, wb[g] || 0);
-    union += Math.max(wa[g] || 0, wb[g] || 0);
-  }});
-  return union ? inter / union : 0;
-}}
 
 // ── 색상 스케일: 유사도 0.35 ~ 1.0 → dim grey → bright gold ──
 const simColor = d3.scaleSequential()
@@ -416,7 +364,6 @@ let simulation = d3.forceSimulation()
   .force("collision", d3.forceCollide().radius(d => d.size + 5));
 
 let linkSel, nodeSel;
-let currentEdges = RAW_EDGES_BASE;  // may be recalculated
 let displayedNodes = [], displayedEdges = [];
 
 // ── 유사도 바 HTML ────────────────────────────────────────────
@@ -558,60 +505,6 @@ function drag(sim) {{
     .on("end",   (e,d) => {{ if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; }});
 }}
 
-// ── 가중치 슬라이더 표시 ──────────────────────────────────────
-["genre","energy","brightness","mood"].forEach(k => {{
-  const slider = document.getElementById("w-"+k);
-  const val    = document.getElementById("wv-"+k);
-  slider.addEventListener("input", () => {{ val.textContent = (+slider.value).toFixed(2); }});
-}});
-
-// ── 가중치 재계산 (클라이언트사이드) ─────────────────────────
-document.getElementById("recalc-btn").addEventListener("click", () => {{
-  const wg = +document.getElementById("w-genre").value;
-  const we = +document.getElementById("w-energy").value;
-  const wb = +document.getElementById("w-brightness").value;
-  const wm = +document.getElementById("w-mood").value;
-  const total = wg + we + wb + wm;
-  if (total === 0) return;
-  // 정규화
-  const [wgn, wen, wbn, wmn] = [wg/total, we/total, wb/total, wm/total];
-
-  // 노드 맵
-  const nodeMap = new Map(RAW_NODES.map(n => [n.id, n]));
-  const newEdges = [];
-  const minSim = +document.getElementById("sim-filter").value;
-
-  // 모든 쌍 재계산
-  const ids = RAW_NODES.map(n => n.id);
-  for (let i = 0; i < ids.length; i++) {{
-    for (let j = i+1; j < ids.length; j++) {{
-      const a = nodeMap.get(ids[i]), b = nodeMap.get(ids[j]);
-      const am = new Set(a.moods),  bm = new Set(b.moods);
-      const g_sim = genreSimFn(a.genres, b.genres);
-      const mu = new Set([...am, ...bm]);
-      const e_sim = 1 - Math.abs(a.energy - b.energy) / 4;
-      const br_sim= 1 - Math.abs(a.brightness - b.brightness) / 4;
-      const bothMoodEmpty = am.size === 0 && bm.size === 0;
-      const m_sim = bothMoodEmpty ? null : (mu.size===0 ? 0 : [...am].filter(x=>bm.has(x)).length / mu.size);
-      const sim   = bothMoodEmpty
-        ? (wgn*g_sim + wen*e_sim + wbn*br_sim) / (wgn + wen + wbn)
-        : wgn*g_sim + wen*e_sim + wbn*br_sim + wmn*m_sim;
-      if (sim >= minSim) {{
-        newEdges.push({{
-          source: a.id, target: b.id,
-          similarity:     Math.round(sim*1000)/1000,
-          genre_sim:      Math.round(g_sim*1000)/1000,
-          energy_sim:     Math.round(e_sim*1000)/1000,
-          brightness_sim: Math.round(br_sim*1000)/1000,
-          mood_sim:       Math.round(m_sim*1000)/1000,
-        }});
-      }}
-    }}
-  }}
-  currentEdges = newEdges;
-  applyFilters();
-}});
-
 // ── 필터 ─────────────────────────────────────────────────────
 function applyFilters() {{
   const minSim    = +document.getElementById("sim-filter").value;
@@ -622,7 +515,7 @@ function applyFilters() {{
     (checkedArtists.size === 0 || checkedArtists.has(n.artist))
   );
   const filteredIds   = new Set(filteredNodes.map(n => n.id));
-  const filteredEdges = currentEdges.filter(e =>
+  const filteredEdges = RAW_EDGES_BASE.filter(e =>
     e.similarity >= minSim &&
     filteredIds.has(e.source) && filteredIds.has(e.target)
   );
