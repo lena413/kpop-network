@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>K-pop Song Network — Similarity Graph</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#0d0d1a; color:#eee; font-family:'Segoe UI',sans-serif; overflow:hidden; }
+  #canvas { width:100vw; height:100vh; }
+
+  .panel {
+    position:fixed; background:rgba(18,18,36,0.93); border:1px solid #2a2a4a;
+    border-radius:14px; padding:14px 18px; font-size:13px; z-index:10;
+    backdrop-filter:blur(6px);
+  }
+  #legend { top:16px; left:16px; }
+  #legend h3 { margin-bottom:10px; font-size:14px; color:#bbb; }
+  .legend-item { display:flex; align-items:center; gap:8px; margin:5px 0; }
+  .legend-dot { width:11px; height:11px; border-radius:50%; flex-shrink:0; }
+  .legend-note { margin-top:10px; color:#666; font-size:11px; line-height:1.7; }
+
+  #filters { top:16px; right:16px; width:210px; }
+  #search-wrap { position:relative; display:flex; align-items:center; }
+  #search-input {
+    flex:1; background:#131326; color:#eee;
+    border:1px solid #3a3a5a; border-radius:6px; padding:4px 8px;
+    font-size:12px; outline:none;
+  }
+  #search-input:focus { border-color:#6B9DFF; }
+  #search-input::placeholder { color:#555; }
+  #search-clear {
+    display:none; position:absolute; right:7px;
+    background:none; border:none; color:#555; cursor:pointer;
+    font-size:14px; line-height:1; padding:0;
+  }
+  #search-clear:hover { color:#ccc; }
+  #search-suggestions {
+    display:none; list-style:none;
+    background:#131326; border:1px solid #3a3a5a; border-radius:6px;
+    margin-top:3px; max-height:160px; overflow-y:auto; font-size:12px;
+  }
+  #search-suggestions li {
+    padding:5px 8px; cursor:pointer; color:#ccc;
+    border-bottom:1px solid #1e1e36;
+  }
+  #search-suggestions li:last-child { border-bottom:none; }
+  #search-suggestions li:hover { background:#1e1e42; color:#fff; }
+  #search-suggestions li span.artist-tag {
+    font-size:10px; color:#666; margin-left:5px;
+  }
+  #filters h3 { margin-bottom:12px; font-size:14px; color:#bbb; }
+  .fg { margin-bottom:13px; }
+  .fg label { display:block; color:#999; margin-bottom:3px; font-size:12px; }
+  .fg input[type=range] { width:100%; accent-color:#6B9DFF; cursor:pointer; }
+  .fg select {
+    width:100%; background:#131326; color:#eee;
+    border:1px solid #3a3a5a; border-radius:6px; padding:4px 6px; font-size:12px;
+  }
+  .vd { color:#6B9DFF; font-size:11px; }
+
+  /* 가중치 슬라이더 */
+  #weights { bottom:16px; right:16px; width:210px; }
+  #weights h3 { margin-bottom:10px; font-size:13px; color:#bbb; }
+  .wrow { display:flex; align-items:center; gap:6px; margin-bottom:8px; font-size:11px; color:#aaa; }
+  .wrow input { flex:1; accent-color:#FF6B9D; }
+  .wval { width:26px; text-align:right; color:#FF6B9D; }
+  #recalc-btn {
+    width:100%; padding:7px; background:#1e1e42; border:1px solid #4a4a8a;
+    color:#9090dd; border-radius:8px; cursor:pointer; font-size:12px; margin-top:4px;
+  }
+  #recalc-btn:hover { background:#2a2a5a; }
+
+  #tooltip {
+    position:fixed; pointer-events:none; display:none;
+    background:rgba(12,12,28,0.97); border:1px solid #3a3a6a;
+    border-radius:11px; padding:11px 15px; font-size:12.5px; line-height:1.7;
+    max-width:280px; z-index:20; box-shadow:0 6px 24px rgba(0,0,0,0.7);
+  }
+  .sim-bar-wrap { margin-top:6px; }
+  .sim-row { display:flex; align-items:center; gap:6px; margin:2px 0; font-size:11px; color:#aaa; }
+  .sim-bar-bg { flex:1; height:5px; background:#222; border-radius:3px; }
+  .sim-bar { height:5px; border-radius:3px; }
+
+  #stats {
+    position:fixed; bottom:16px; left:16px; display:flex; align-items:center; gap:10px;
+    background:rgba(18,18,36,0.85); border:1px solid #2a2a4a;
+    border-radius:10px; padding:8px 14px; font-size:12px; color:#777; z-index:10;
+  }
+  #fit-btn {
+    background:none; border:1px solid #3a3a5a; color:#777;
+    border-radius:5px; padding:2px 8px; cursor:pointer; font-size:11px;
+  }
+  #fit-btn:hover { color:#ccc; border-color:#6B9DFF; }
+
+  #artist-checks { max-height:148px; overflow-y:auto; margin-top:4px; }
+  .check-item { display:flex; align-items:center; gap:6px; padding:2px 0; font-size:12px; color:#ccc; cursor:pointer; }
+  .check-item input { accent-color:#6B9DFF; cursor:pointer; flex-shrink:0; }
+  .check-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .check-all { border-bottom:1px solid #2a2a4a; padding-bottom:5px; margin-bottom:2px; color:#999; }
+
+  .node circle { cursor:pointer; stroke:rgba(255,255,255,0.1); stroke-width:1px; transition:r 0.2s; }
+  .node circle:hover { stroke:white; stroke-width:2px; }
+  .node text { pointer-events:none; fill:#ccc; font-size:10px; }
+</style>
+</head>
+<body>
+<svg id="canvas"></svg>
+
+<!-- 범례 -->
+<div class="panel" id="legend">
+  <h3>아티스트</h3>
+  <div class="legend-item"><div class="legend-dot" style="background:#FF6B9D"></div>NewJeans</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#6B9DFF"></div>투모로우바이투게더</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#9DFF6B"></div>연준</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#FFD700"></div>KATSEYE</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#FF9966"></div>IVE</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#BB8FCE"></div>범규</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#48C9B0"></div>Hearts2Hearts</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#F8C471"></div>KiiKii</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#DA70D6"></div>NMIXX</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#FF1493"></div>BLACKPINK</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#00E5FF"></div>aespa</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#FF8C42"></div>LE SSERAFIM</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#4FC3F7"></div>NCT DREAM</div>
+  <div class="legend-note">
+    엣지 밝기 = 종합 유사도
+  </div>
+</div>
+
+<!-- 필터 -->
+<div class="panel" id="filters">
+  <h3>필터</h3>
+  <div class="fg">
+    <label>노래 검색</label>
+    <div id="search-wrap">
+      <input type="text" id="search-input" placeholder="제목 입력..." autocomplete="off">
+      <button id="search-clear">✕</button>
+    </div>
+    <ul id="search-suggestions"></ul>
+  </div>
+  <div class="fg">
+    <label>최소 유사도: <span class="vd" id="sim-val">0.70</span></label>
+    <input type="range" id="sim-filter" min="0.55" max="0.85" value="0.70" step="0.05">
+  </div>
+  <div class="fg">
+    <label>아티스트</label>
+    <label class="check-item check-all"><input type="checkbox" id="artist-all" checked> 전체 선택/해제</label>
+    <div id="artist-checks">
+    <label class="check-item"><input type="checkbox" class="artist-cb" value="NewJeans" checked><span class="check-dot" style="background:#FF6B9D"></span>NewJeans</label>
+    <label class="check-item"><input type="checkbox" class="artist-cb" value="투모로우바이투게더" checked><span class="check-dot" style="background:#6B9DFF"></span>투모로우바이투게더</label>
+    <label class="check-item"><input type="checkbox" class="artist-cb" value="연준" checked><span class="check-dot" style="background:#9DFF6B"></span>연준</label>
+    <label class="check-item"><input type="checkbox" class="artist-cb" value="KATSEYE" checked><span class="check-dot" style="background:#FFD700"></span>KATSEYE</label>
+    <label class="check-item"><input type="checkbox" class="artist-cb" value="IVE" checked><span class="check-dot" style="background:#FF9966"></span>IVE</label>
+    <label class="check-item"><input type="checkbox" class="artist-cb" value="범규" checked><span class="check-dot" style="background:#BB8FCE"></span>범규</label>
+    <label class="check-item"><input type="checkbox" class="artist-cb" value="Hearts2Hearts (하츠투하츠)" checked><span class="check-dot" style="background:#48C9B0"></span>Hearts2Hearts</label>
+    <label class="check-item"><input type="checkbox" class="artist-cb" value="KiiKii (키키)" checked><span class="check-dot" style="background:#F8C471"></span>KiiKii</label>
+    <label class="check-item"><input type="checkbox" class="artist-cb" value="NMIXX" checked><span class="check-dot" style="background:#DA70D6"></span>NMIXX</label>
+    <label class="check-item"><input type="checkbox" class="artist-cb" value="BLACKPINK" checked><span class="check-dot" style="background:#FF1493"></span>BLACKPINK</label>
+    <label class="check-item"><input type="checkbox" class="artist-cb" value="aespa" checked><span class="check-dot" style="background:#00E5FF"></span>aespa</label>
+    <label class="check-item"><input type="checkbox" class="artist-cb" value="LE SSERAFIM (르세라핌)" checked><span class="check-dot" style="background:#FF8C42"></span>LE SSERAFIM</label>
+    <label class="check-item"><input type="checkbox" class="artist-cb" value="NCT DREAM" checked><span class="check-dot" style="background:#4FC3F7"></span>NCT DREAM</label>
+    </div>
+  </div>
+</div>
+
+<!-- 가중치 조정 -->
+<div class="panel" id="weights">
+  <h3>가중치 조정 (합산 후 재계산)</h3>
+  <div class="wrow">장르<input type="range" id="w-genre" min="0" max="1" value="0.4" step="0.05"><span class="wval" id="wv-genre">0.40</span></div>
+  <div class="wrow">Energy<input type="range" id="w-energy" min="0" max="1" value="0.2" step="0.05"><span class="wval" id="wv-energy">0.20</span></div>
+  <div class="wrow">Brightness<input type="range" id="w-brightness" min="0" max="1" value="0.2" step="0.05"><span class="wval" id="wv-brightness">0.20</span></div>
+  <div class="wrow">무드<input type="range" id="w-mood" min="0" max="1" value="0.2" step="0.05"><span class="wval" id="wv-mood">0.20</span></div>
+  <button id="recalc-btn">유사도 재계산</button>
+</div>
+
+<div id="tooltip"></div>
+<div id="stats">노드: <b id="s-nodes">83</b>  엣지: <b id="s-edges">387</b><button id="fit-btn">⊙ 화면 맞추기</button></div>
+
+<script>
+const RAW_NODES = [{"id": 1, "label": "Upside Down Kiss", "artist": "투모로우바이투게더", "genres": ["new jack swing", "hip hop", "dance pop"], "moods": ["어두움", "리드미컬"], "energy": 4, "brightness": 1, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Upside Down Kiss</b><br>🎤 투모로우바이투게더<br>💿 별의 장: TOGETHER (2025)<br>🎸 new jack swing / hip hop / dance pop<br>⚡ energy 4 &nbsp; 🌟 brightness 1<br>🌑 어두움 / 🎵 리드미컬"}, {"id": 2, "label": "Beautiful Strangers", "artist": "투모로우바이투게더", "genres": ["hip hop", "trap"], "moods": ["강렬", "벅참"], "energy": 5, "brightness": 2, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Beautiful Strangers</b><br>🎤 투모로우바이투게더<br>💿 별의 장: TOGETHER (2025)<br>🎸 hip hop / trap<br>⚡ energy 5 &nbsp; 🌟 brightness 2<br>🔥 강렬 / 💫 벅참"}, {"id": 3, "label": "Ghost Girl", "artist": "투모로우바이투게더", "genres": ["pop rock", "reggae rock"], "moods": ["어두움", "리드미컬"], "energy": 4, "brightness": 1, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Ghost Girl</b><br>🎤 투모로우바이투게더<br>💿 별의 장: TOGETHER (2025)<br>🎸 pop rock / reggae rock<br>⚡ energy 4 &nbsp; 🌟 brightness 1<br>🌑 어두움 / 🎵 리드미컬"}, {"id": 4, "label": "Sunday Driver", "artist": "투모로우바이투게더", "genres": ["dance pop"], "moods": ["청량"], "energy": 4, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Sunday Driver</b><br>🎤 투모로우바이투게더<br>💿 별의 장: TOGETHER (2025)<br>🎸 dance pop<br>⚡ energy 4 &nbsp; 🌟 brightness 5<br>☀️ 청량"}, {"id": 5, "label": "Dance With You", "artist": "투모로우바이투게더", "genres": ["r&b", "hip hop"], "moods": ["어두움", "리드미컬"], "energy": 4, "brightness": 1, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Dance With You</b><br>🎤 투모로우바이투게더<br>💿 별의 장: TOGETHER (2025)<br>🎸 r&b / hip hop<br>⚡ energy 4 &nbsp; 🌟 brightness 1<br>🌑 어두움 / 🎵 리드미컬"}, {"id": 6, "label": "Take My Half", "artist": "투모로우바이투게더", "genres": ["ballad", "pop rock"], "moods": ["벅참", "잔잔"], "energy": 3, "brightness": 4, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Take My Half</b><br>🎤 투모로우바이투게더<br>💿 별의 장: TOGETHER (2025)<br>🎸 ballad / pop rock<br>⚡ energy 3 &nbsp; 🌟 brightness 4<br>💫 벅참 / 🌊 잔잔"}, {"id": 7, "label": "Bird of Night", "artist": "투모로우바이투게더", "genres": ["r&b"], "moods": ["잔잔", "몽환"], "energy": 2, "brightness": 3, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Bird of Night</b><br>🎤 투모로우바이투게더<br>💿 별의 장: TOGETHER (2025)<br>🎸 r&b<br>⚡ energy 2 &nbsp; 🌟 brightness 3<br>🌊 잔잔 / 🌙 몽환"}, {"id": 8, "label": "별의 노래", "artist": "투모로우바이투게더", "genres": ["pop rock", "stadium rock"], "moods": ["벅참", "잔잔"], "energy": 2, "brightness": 4, "color": "#6B9DFF", "size": 10, "tooltip": "<b>별의 노래</b><br>🎤 투모로우바이투게더<br>💿 별의 장: TOGETHER (2025)<br>🎸 pop rock / stadium rock<br>⚡ energy 2 &nbsp; 🌟 brightness 4<br>💫 벅참 / 🌊 잔잔"}, {"id": 9, "label": "Love Language", "artist": "투모로우바이투게더", "genres": ["house", "dance pop"], "moods": ["청량"], "energy": 4, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Love Language</b><br>🎤 투모로우바이투게더<br>💿 Love Language (2025)<br>🎸 house / dance pop<br>⚡ energy 4 &nbsp; 🌟 brightness 5<br>☀️ 청량"}, {"id": 10, "label": "Heaven", "artist": "투모로우바이투게더", "genres": ["disco", "dance pop"], "moods": ["청량", "리드미컬"], "energy": 3, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Heaven</b><br>🎤 투모로우바이투게더<br>💿 별의 장: SANCTUARY (2024)<br>🎸 disco / dance pop<br>⚡ energy 3 &nbsp; 🌟 brightness 5<br>☀️ 청량 / 🎵 리드미컬"}, {"id": 11, "label": "Over The Moon", "artist": "투모로우바이투게더", "genres": ["dance pop", "pop rock", "r&b"], "moods": ["청량", "세련"], "energy": 4, "brightness": 4, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Over The Moon</b><br>🎤 투모로우바이투게더<br>💿 별의 장: SANCTUARY (2024)<br>🎸 dance pop / pop rock / r&b<br>⚡ energy 4 &nbsp; 🌟 brightness 4<br>☀️ 청량 / ✨ 세련"}, {"id": 12, "label": "Danger", "artist": "투모로우바이투게더", "genres": ["r&b", "dance pop"], "moods": ["어두움", "세련"], "energy": 4, "brightness": 2, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Danger</b><br>🎤 투모로우바이투게더<br>💿 별의 장: SANCTUARY (2024)<br>🎸 r&b / dance pop<br>⚡ energy 4 &nbsp; 🌟 brightness 2<br>🌑 어두움 / ✨ 세련"}, {"id": 13, "label": "Resist (Note Gonna Run Away)", "artist": "투모로우바이투게더", "genres": ["reggaeton"], "moods": ["어두움", "세련"], "energy": 4, "brightness": 2, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Resist (Note Gonna Run Away)</b><br>🎤 투모로우바이투게더<br>💿 별의 장: SANCTUARY (2024)<br>🎸 reggaeton<br>⚡ energy 4 &nbsp; 🌟 brightness 2<br>🌑 어두움 / ✨ 세련"}, {"id": 14, "label": "Forty One Winks", "artist": "투모로우바이투게더", "genres": ["r&b"], "moods": ["잔잔", "세련"], "energy": 3, "brightness": 3, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Forty One Winks</b><br>🎤 투모로우바이투게더<br>💿 별의 장: SANCTUARY (2024)<br>🎸 r&b<br>⚡ energy 3 &nbsp; 🌟 brightness 3<br>🌊 잔잔 / ✨ 세련"}, {"id": 15, "label": "Higher Than Heaven", "artist": "투모로우바이투게더", "genres": ["pop rock"], "moods": ["청량", "벅참"], "energy": 5, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Higher Than Heaven</b><br>🎤 투모로우바이투게더<br>💿 별의 장: SANCTUARY (2024)<br>🎸 pop rock<br>⚡ energy 5 &nbsp; 🌟 brightness 5<br>☀️ 청량 / 💫 벅참"}, {"id": 16, "label": "내일에서 기다릴게 (I'll See You There Tomorrow)", "artist": "투모로우바이투게더", "genres": ["house", "uk garage"], "moods": ["청량"], "energy": 5, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>내일에서 기다릴게 (I'll See You There Tomorrow)</b><br>🎤 투모로우바이투게더<br>💿 minisode 3: TOMORROW (2024)<br>🎸 house / uk garage<br>⚡ energy 5 &nbsp; 🌟 brightness 5<br>☀️ 청량"}, {"id": 17, "label": "Deja Vu", "artist": "투모로우바이투게더", "genres": ["hip hop", "trap", "pop rock"], "moods": ["강렬", "어두움"], "energy": 4, "brightness": 1, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Deja Vu</b><br>🎤 투모로우바이투게더<br>💿 minisode 3: TOMORROW (2024)<br>🎸 hip hop / trap / pop rock<br>⚡ energy 4 &nbsp; 🌟 brightness 1<br>🔥 강렬 / 🌑 어두움"}, {"id": 18, "label": "Miracle", "artist": "투모로우바이투게더", "genres": ["pop rock", "synthpop"], "moods": ["벅참", "청량"], "energy": 5, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Miracle</b><br>🎤 투모로우바이투게더<br>💿 minisode 3: TOMORROW (2024)<br>🎸 pop rock / synthpop<br>⚡ energy 5 &nbsp; 🌟 brightness 5<br>💫 벅참 / ☀️ 청량"}, {"id": 19, "label": "The Killa (I Belong to You)", "artist": "투모로우바이투게더", "genres": ["r&b", "afrobeats"], "moods": ["리드미컬", "어두움"], "energy": 3, "brightness": 1, "color": "#6B9DFF", "size": 10, "tooltip": "<b>The Killa (I Belong to You)</b><br>🎤 투모로우바이투게더<br>💿 minisode 3: TOMORROW (2024)<br>🎸 r&b / afrobeats<br>⚡ energy 3 &nbsp; 🌟 brightness 1<br>🎵 리드미컬 / 🌑 어두움"}, {"id": 20, "label": "Quarter Life", "artist": "투모로우바이투게더", "genres": ["pop rock", "stadium rock"], "moods": ["청량", "벅참"], "energy": 5, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Quarter Life</b><br>🎤 투모로우바이투게더<br>💿 minisode 3: TOMORROW (2024)<br>🎸 pop rock / stadium rock<br>⚡ energy 5 &nbsp; 🌟 brightness 5<br>☀️ 청량 / 💫 벅참"}, {"id": 21, "label": "Deja Vu (Anemoia Remix)", "artist": "투모로우바이투게더", "genres": ["pop rock", "alternative rock"], "moods": ["강렬", "벅참"], "energy": 5, "brightness": 1, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Deja Vu (Anemoia Remix)</b><br>🎤 투모로우바이투게더<br>💿 minisode 3: TOMORROW (2024)<br>🎸 pop rock / alternative rock<br>⚡ energy 5 &nbsp; 🌟 brightness 1<br>🔥 강렬 / 💫 벅참"}, {"id": 22, "label": "Growing Pain", "artist": "투모로우바이투게더", "genres": ["pop rock", "hard rock"], "moods": ["강렬", "어두움"], "energy": 5, "brightness": 1, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Growing Pain</b><br>🎤 투모로우바이투게더<br>💿 이름의 장: FREEFALL (2023)<br>🎸 pop rock / hard rock<br>⚡ energy 5 &nbsp; 🌟 brightness 1<br>🔥 강렬 / 🌑 어두움"}, {"id": 23, "label": "Chasing That Feeling", "artist": "투모로우바이투게더", "genres": ["synthpop", "new wave"], "moods": ["강렬", "세련"], "energy": 5, "brightness": 2, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Chasing That Feeling</b><br>🎤 투모로우바이투게더<br>💿 이름의 장: FREEFALL (2023)<br>🎸 synthpop / new wave<br>⚡ energy 5 &nbsp; 🌟 brightness 2<br>🔥 강렬 / ✨ 세련"}, {"id": 24, "label": "Back for More  (TXT Ver.)", "artist": "투모로우바이투게더", "genres": ["disco", "funk pop"], "moods": ["리드미컬"], "energy": 5, "brightness": 1, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Back for More  (TXT Ver.)</b><br>🎤 투모로우바이투게더<br>💿 이름의 장: FREEFALL (2023)<br>🎸 disco / funk pop<br>⚡ energy 5 &nbsp; 🌟 brightness 1<br>🎵 리드미컬"}, {"id": 25, "label": "Dreamer", "artist": "투모로우바이투게더", "genres": ["r&b", "soul"], "moods": ["몽환"], "energy": 3, "brightness": 2, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Dreamer</b><br>🎤 투모로우바이투게더<br>💿 이름의 장: FREEFALL (2023)<br>🎸 r&b / soul<br>⚡ energy 3 &nbsp; 🌟 brightness 2<br>🌙 몽환"}, {"id": 26, "label": "Deep Down", "artist": "투모로우바이투게더", "genres": ["jersey club", "dance pop"], "moods": ["몽환", "리드미컬"], "energy": 3, "brightness": 3, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Deep Down</b><br>🎤 투모로우바이투게더<br>💿 이름의 장: FREEFALL (2023)<br>🎸 jersey club / dance pop<br>⚡ energy 3 &nbsp; 🌟 brightness 3<br>🌙 몽환 / 🎵 리드미컬"}, {"id": 27, "label": "Happily Ever After", "artist": "투모로우바이투게더", "genres": ["jersey club", "dance pop"], "moods": ["청량", "리드미컬"], "energy": 4, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Happily Ever After</b><br>🎤 투모로우바이투게더<br>💿 이름의 장: FREEFALL (2023)<br>🎸 jersey club / dance pop<br>⚡ energy 4 &nbsp; 🌟 brightness 5<br>☀️ 청량 / 🎵 리드미컬"}, {"id": 28, "label": "물수제비", "artist": "투모로우바이투게더", "genres": ["pop rock", "indie rock"], "moods": ["벅참"], "energy": 2, "brightness": 3, "color": "#6B9DFF", "size": 10, "tooltip": "<b>물수제비</b><br>🎤 투모로우바이투게더<br>💿 이름의 장: FREEFALL (2023)<br>🎸 pop rock / indie rock<br>⚡ energy 2 &nbsp; 🌟 brightness 3<br>💫 벅참"}, {"id": 29, "label": "Blue Spring", "artist": "투모로우바이투게더", "genres": ["pop rock", "alternative rock"], "moods": ["벅참"], "energy": 2, "brightness": 4, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Blue Spring</b><br>🎤 투모로우바이투게더<br>💿 이름의 장: FREEFALL (2023)<br>🎸 pop rock / alternative rock<br>⚡ energy 2 &nbsp; 🌟 brightness 4<br>💫 벅참"}, {"id": 30, "label": "Do It Like That", "artist": "투모로우바이투게더", "genres": ["dance pop", "funk pop"], "moods": ["리드미컬"], "energy": 4, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Do It Like That</b><br>🎤 투모로우바이투게더<br>💿 이름의 장: FREEFALL (2023)<br>🎸 dance pop / funk pop<br>⚡ energy 4 &nbsp; 🌟 brightness 5<br>🎵 리드미컬"}, {"id": 31, "label": "Devil by the Window", "artist": "투모로우바이투게더", "genres": ["dance pop", "synthpop"], "moods": ["어두움"], "energy": 4, "brightness": 1, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Devil by the Window</b><br>🎤 투모로우바이투게더<br>💿 이름의 장: TEMPTATION (2023)<br>🎸 dance pop / synthpop<br>⚡ energy 4 &nbsp; 🌟 brightness 1<br>🌑 어두움"}, {"id": 32, "label": "Sugar Rush Ride", "artist": "투모로우바이투게더", "genres": ["dance pop", "pop rock"], "moods": ["몽환"], "energy": 5, "brightness": 2, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Sugar Rush Ride</b><br>🎤 투모로우바이투게더<br>💿 이름의 장: TEMPTATION (2023)<br>🎸 dance pop / pop rock<br>⚡ energy 5 &nbsp; 🌟 brightness 2<br>🌙 몽환"}, {"id": 33, "label": "Happy Fools (feat. Coi Leray)", "artist": "투모로우바이투게더", "genres": ["hip hop", "dance pop"], "moods": ["리드미컬"], "energy": 3, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Happy Fools (feat. Coi Leray)</b><br>🎤 투모로우바이투게더<br>💿 이름의 장: TEMPTATION (2023)<br>🎸 hip hop / dance pop<br>⚡ energy 3 &nbsp; 🌟 brightness 5<br>🎵 리드미컬"}, {"id": 34, "label": "Tinnitus (돌멩이가 되고 싶어)", "artist": "투모로우바이투게더", "genres": ["r&b", "afrobeats"], "moods": ["리드미컬"], "energy": 3, "brightness": 2, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Tinnitus (돌멩이가 되고 싶어)</b><br>🎤 투모로우바이투게더<br>💿 이름의 장: TEMPTATION (2023)<br>🎸 r&b / afrobeats<br>⚡ energy 3 &nbsp; 🌟 brightness 2<br>🎵 리드미컬"}, {"id": 35, "label": "네버랜드를 떠나며", "artist": "투모로우바이투게더", "genres": ["ballad", "pop rock"], "moods": ["벅참"], "energy": 4, "brightness": 2, "color": "#6B9DFF", "size": 10, "tooltip": "<b>네버랜드를 떠나며</b><br>🎤 투모로우바이투게더<br>💿 이름의 장: TEMPTATION (2023)<br>🎸 ballad / pop rock<br>⚡ energy 4 &nbsp; 🌟 brightness 2<br>💫 벅참"}, {"id": 36, "label": "Opening Sequence", "artist": "투모로우바이투게더", "genres": ["r&b"], "moods": [], "energy": 2, "brightness": 1, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Opening Sequence</b><br>🎤 투모로우바이투게더<br>💿 minisode 2: Thursday's Child (2022)<br>🎸 r&b<br>⚡ energy 2 &nbsp; 🌟 brightness 1<br>"}, {"id": 37, "label": "Good Boy Gone Bad", "artist": "투모로우바이투게더", "genres": ["hip hop", "pop rock"], "moods": ["강렬"], "energy": 5, "brightness": 1, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Good Boy Gone Bad</b><br>🎤 투모로우바이투게더<br>💿 minisode 2: Thursday's Child (2022)<br>🎸 hip hop / pop rock<br>⚡ energy 5 &nbsp; 🌟 brightness 1<br>🔥 강렬"}, {"id": 38, "label": "Trust Fund Baby", "artist": "투모로우바이투게더", "genres": ["ballad", "pop rock"], "moods": [], "energy": 2, "brightness": 2, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Trust Fund Baby</b><br>🎤 투모로우바이투게더<br>💿 minisode 2: Thursday's Child (2022)<br>🎸 ballad / pop rock<br>⚡ energy 2 &nbsp; 🌟 brightness 2<br>"}, {"id": 39, "label": "Lonely Boy (네 번째 손가락 위 타투)", "artist": "투모로우바이투게더", "genres": ["r&b", "hip hop"], "moods": [], "energy": 2, "brightness": 1, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Lonely Boy (네 번째 손가락 위 타투)</b><br>🎤 투모로우바이투게더<br>💿 minisode 2: Thursday's Child (2022)<br>🎸 r&b / hip hop<br>⚡ energy 2 &nbsp; 🌟 brightness 1<br>"}, {"id": 40, "label": "Thursday's Child Has Far To Go", "artist": "투모로우바이투게더", "genres": ["synthpop"], "moods": ["벅참"], "energy": 5, "brightness": 4, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Thursday's Child Has Far To Go</b><br>🎤 투모로우바이투게더<br>💿 minisode 2: Thursday's Child (2022)<br>🎸 synthpop<br>⚡ energy 5 &nbsp; 🌟 brightness 4<br>💫 벅참"}, {"id": 41, "label": "LO$ER=LO♡ER", "artist": "투모로우바이투게더", "genres": ["pop rock", "pop punk", "hip hop"], "moods": ["벅참"], "energy": 5, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>LO$ER=LO♡ER</b><br>🎤 투모로우바이투게더<br>💿 혼돈의 장: FIGHT OR ESCAPE (2021)<br>🎸 pop rock / pop punk / hip hop<br>⚡ energy 5 &nbsp; 🌟 brightness 5<br>💫 벅참"}, {"id": 42, "label": "Anti-Romantic", "artist": "투모로우바이투게더", "genres": ["synthpop", "r&b"], "moods": [], "energy": 2, "brightness": 4, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Anti-Romantic</b><br>🎤 투모로우바이투게더<br>💿 혼돈의 장: FREEZE (2021)<br>🎸 synthpop / r&b<br>⚡ energy 2 &nbsp; 🌟 brightness 4<br>"}, {"id": 43, "label": "0X1=LOVESONG (I Know I Love You) feat. Seori", "artist": "투모로우바이투게더", "genres": ["pop rock", "alternative rock"], "moods": ["벅참"], "energy": 5, "brightness": 4, "color": "#6B9DFF", "size": 10, "tooltip": "<b>0X1=LOVESONG (I Know I Love You) feat. Seori</b><br>🎤 투모로우바이투게더<br>💿 혼돈의 장: FREEZE (2021)<br>🎸 pop rock / alternative rock<br>⚡ energy 5 &nbsp; 🌟 brightness 4<br>💫 벅참"}, {"id": 44, "label": "Magic", "artist": "투모로우바이투게더", "genres": ["disco", "dance pop"], "moods": ["청량"], "energy": 4, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Magic</b><br>🎤 투모로우바이투게더<br>💿 혼돈의 장: FREEZE (2021)<br>🎸 disco / dance pop<br>⚡ energy 4 &nbsp; 🌟 brightness 5<br>☀️ 청량"}, {"id": 45, "label": "소악행", "artist": "투모로우바이투게더", "genres": ["dance pop", "synthpop"], "moods": [], "energy": 3, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>소악행</b><br>🎤 투모로우바이투게더<br>💿 혼돈의 장: FREEZE (2021)<br>🎸 dance pop / synthpop<br>⚡ energy 3 &nbsp; 🌟 brightness 5<br>"}, {"id": 46, "label": "밸런스 게임", "artist": "투모로우바이투게더", "genres": ["hip hop", "synthpop"], "moods": [], "energy": 3, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>밸런스 게임</b><br>🎤 투모로우바이투게더<br>💿 혼돈의 장: FREEZE (2021)<br>🎸 hip hop / synthpop<br>⚡ energy 3 &nbsp; 🌟 brightness 5<br>"}, {"id": 47, "label": "No Rules", "artist": "투모로우바이투게더", "genres": ["funk pop", "dance pop"], "moods": ["청량"], "energy": 4, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>No Rules</b><br>🎤 투모로우바이투게더<br>💿 혼돈의 장: FREEZE (2021)<br>🎸 funk pop / dance pop<br>⚡ energy 4 &nbsp; 🌟 brightness 5<br>☀️ 청량"}, {"id": 48, "label": "교환일기 (두밧두 와리와리)", "artist": "투모로우바이투게더", "genres": ["dance pop"], "moods": ["청량"], "energy": 4, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>교환일기 (두밧두 와리와리)</b><br>🎤 투모로우바이투게더<br>💿 혼돈의 장: FIGHT OR ESCAPE (2021)<br>🎸 dance pop<br>⚡ energy 4 &nbsp; 🌟 brightness 5<br>☀️ 청량"}, {"id": 49, "label": "디어 스푸트니크", "artist": "투모로우바이투게더", "genres": ["pop rock", "alternative rock"], "moods": ["벅참"], "energy": 5, "brightness": 4, "color": "#6B9DFF", "size": 10, "tooltip": "<b>디어 스푸트니크</b><br>🎤 투모로우바이투게더<br>💿 혼돈의 장: FREEZE (2021)<br>🎸 pop rock / alternative rock<br>⚡ energy 5 &nbsp; 🌟 brightness 4<br>💫 벅참"}, {"id": 50, "label": "Frost", "artist": "투모로우바이투게더", "genres": ["hip hop", "hyperpop", "trap"], "moods": ["강렬"], "energy": 5, "brightness": 1, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Frost</b><br>🎤 투모로우바이투게더<br>💿 혼돈의 장: FREEZE (2021)<br>🎸 hip hop / hyperpop / trap<br>⚡ energy 5 &nbsp; 🌟 brightness 1<br>🔥 강렬"}, {"id": 51, "label": "0X1=LOVESONG (I Know I Love You) feat. Seori (Emocore Mix)", "artist": "투모로우바이투게더", "genres": ["pop rock", "emo rock"], "moods": ["벅참"], "energy": 5, "brightness": 4, "color": "#6B9DFF", "size": 10, "tooltip": "<b>0X1=LOVESONG (I Know I Love You) feat. Seori (Emocore Mix)</b><br>🎤 투모로우바이투게더<br>💿 혼돈의 장: FIGHT OR ESCAPE (2021)<br>🎸 pop rock / emo rock<br>⚡ energy 5 &nbsp; 🌟 brightness 4<br>💫 벅참"}, {"id": 52, "label": "Ghosting", "artist": "투모로우바이투게더", "genres": ["pop rock", "alternative rock"], "moods": ["청량"], "energy": 4, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Ghosting</b><br>🎤 투모로우바이투게더<br>💿 minisode1 : Blue Hour (2020)<br>🎸 pop rock / alternative rock<br>⚡ energy 4 &nbsp; 🌟 brightness 5<br>☀️ 청량"}, {"id": 53, "label": "5시 53분의 하늘에서 발견한 너와 나", "artist": "투모로우바이투게더", "genres": ["disco", "dance pop"], "moods": ["청량"], "energy": 4, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>5시 53분의 하늘에서 발견한 너와 나</b><br>🎤 투모로우바이투게더<br>💿 minisode1 : Blue Hour (2020)<br>🎸 disco / dance pop<br>⚡ energy 4 &nbsp; 🌟 brightness 5<br>☀️ 청량"}, {"id": 54, "label": "날씨를 잃어버렸어", "artist": "투모로우바이투게더", "genres": ["dance pop", "dancehall"], "moods": [], "energy": 4, "brightness": 2, "color": "#6B9DFF", "size": 10, "tooltip": "<b>날씨를 잃어버렸어</b><br>🎤 투모로우바이투게더<br>💿 minisode1 : Blue Hour (2020)<br>🎸 dance pop / dancehall<br>⚡ energy 4 &nbsp; 🌟 brightness 2<br>"}, {"id": 55, "label": "Wishlist", "artist": "투모로우바이투게더", "genres": ["pop rock"], "moods": ["청량"], "energy": 5, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Wishlist</b><br>🎤 투모로우바이투게더<br>💿 minisode1 : Blue Hour (2020)<br>🎸 pop rock<br>⚡ energy 5 &nbsp; 🌟 brightness 5<br>☀️ 청량"}, {"id": 56, "label": "하굣길", "artist": "투모로우바이투게더", "genres": ["r&b", "synthpop"], "moods": [], "energy": 3, "brightness": 4, "color": "#6B9DFF", "size": 10, "tooltip": "<b>하굣길</b><br>🎤 투모로우바이투게더<br>💿 minisode1 : Blue Hour (2020)<br>🎸 r&b / synthpop<br>⚡ energy 3 &nbsp; 🌟 brightness 4<br>"}, {"id": 57, "label": "Drama", "artist": "투모로우바이투게더", "genres": ["funk pop"], "moods": ["청량"], "energy": 4, "brightness": 3, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Drama</b><br>🎤 투모로우바이투게더<br>💿 꿈의 장: ETERNITY (2020)<br>🎸 funk pop<br>⚡ energy 4 &nbsp; 🌟 brightness 3<br>☀️ 청량"}, {"id": 58, "label": "세계가 불타버린 밤, 우린... (Can't You See Me?)", "artist": "투모로우바이투게더", "genres": ["dance pop", "hip hop"], "moods": ["강렬"], "energy": 5, "brightness": 2, "color": "#6B9DFF", "size": 10, "tooltip": "<b>세계가 불타버린 밤, 우린... (Can't You See Me?)</b><br>🎤 투모로우바이투게더<br>💿 꿈의 장: ETERNITY (2020)<br>🎸 dance pop / hip hop<br>⚡ energy 5 &nbsp; 🌟 brightness 2<br>🔥 강렬"}, {"id": 59, "label": "샴푸의 요정", "artist": "투모로우바이투게더", "genres": ["synthpop", "dream pop"], "moods": [], "energy": 2, "brightness": 2, "color": "#6B9DFF", "size": 10, "tooltip": "<b>샴푸의 요정</b><br>🎤 투모로우바이투게더<br>💿 꿈의 장: ETERNITY (2020)<br>🎸 synthpop / dream pop<br>⚡ energy 2 &nbsp; 🌟 brightness 2<br>"}, {"id": 60, "label": "거울 속의 미로", "artist": "투모로우바이투게더", "genres": ["pop rock", "britpop"], "moods": [], "energy": 2, "brightness": 1, "color": "#6B9DFF", "size": 10, "tooltip": "<b>거울 속의 미로</b><br>🎤 투모로우바이투게더<br>💿 꿈의 장: ETERNITY (2020)<br>🎸 pop rock / britpop<br>⚡ energy 2 &nbsp; 🌟 brightness 1<br>"}, {"id": 61, "label": "동물원을 빠져나온 퓨마", "artist": "투모로우바이투게더", "genres": ["hip hop", "trap"], "moods": ["강렬"], "energy": 5, "brightness": 1, "color": "#6B9DFF", "size": 10, "tooltip": "<b>동물원을 빠져나온 퓨마</b><br>🎤 투모로우바이투게더<br>💿 꿈의 장: ETERNITY (2020)<br>🎸 hip hop / trap<br>⚡ energy 5 &nbsp; 🌟 brightness 1<br>🔥 강렬"}, {"id": 62, "label": "Eternally", "artist": "투모로우바이투게더", "genres": ["r&b", "alternative r&b"], "moods": [], "energy": 4, "brightness": 2, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Eternally</b><br>🎤 투모로우바이투게더<br>💿 꿈의 장: ETERNITY (2020)<br>🎸 r&b / alternative r&b<br>⚡ energy 4 &nbsp; 🌟 brightness 2<br>"}, {"id": 63, "label": "New Rules", "artist": "투모로우바이투게더", "genres": ["funk pop", "hip hop"], "moods": [], "energy": 5, "brightness": 2, "color": "#6B9DFF", "size": 10, "tooltip": "<b>New Rules</b><br>🎤 투모로우바이투게더<br>💿 꿈의 장: MAGIC (2019)<br>🎸 funk pop / hip hop<br>⚡ energy 5 &nbsp; 🌟 brightness 2<br>"}, {"id": 64, "label": "9와 4분의 3 승강장에서 너를 기다려 (Run Away)", "artist": "투모로우바이투게더", "genres": ["synthpop", "new wave"], "moods": ["청량"], "energy": 5, "brightness": 4, "color": "#6B9DFF", "size": 10, "tooltip": "<b>9와 4분의 3 승강장에서 너를 기다려 (Run Away)</b><br>🎤 투모로우바이투게더<br>💿 꿈의 장: MAGIC (2019)<br>🎸 synthpop / new wave<br>⚡ energy 5 &nbsp; 🌟 brightness 4<br>☀️ 청량"}, {"id": 65, "label": "간지러워 (Roller Coaster)", "artist": "투모로우바이투게더", "genres": ["uk garage", "new jack swing"], "moods": [], "energy": 3, "brightness": 3, "color": "#6B9DFF", "size": 10, "tooltip": "<b>간지러워 (Roller Coaster)</b><br>🎤 투모로우바이투게더<br>💿 꿈의 장: MAGIC (2019)<br>🎸 uk garage / new jack swing<br>⚡ energy 3 &nbsp; 🌟 brightness 3<br>"}, {"id": 66, "label": "Poppin' Star", "artist": "투모로우바이투게더", "genres": ["dance pop", "synthpop"], "moods": ["청량"], "energy": 3, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Poppin' Star</b><br>🎤 투모로우바이투게더<br>💿 꿈의 장: MAGIC (2019)<br>🎸 dance pop / synthpop<br>⚡ energy 3 &nbsp; 🌟 brightness 5<br>☀️ 청량"}, {"id": 67, "label": "그냥 괴물을 살려두면 안 되는 걸까", "artist": "투모로우바이투게더", "genres": ["house", "moombahton"], "moods": ["청량"], "energy": 4, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>그냥 괴물을 살려두면 안 되는 걸까</b><br>🎤 투모로우바이투게더<br>💿 꿈의 장: MAGIC (2019)<br>🎸 house / moombahton<br>⚡ energy 4 &nbsp; 🌟 brightness 5<br>☀️ 청량"}, {"id": 68, "label": "Magic Island", "artist": "투모로우바이투게더", "genres": ["ballad"], "moods": [], "energy": 1, "brightness": 4, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Magic Island</b><br>🎤 투모로우바이투게더<br>💿 꿈의 장: MAGIC (2019)<br>🎸 ballad<br>⚡ energy 1 &nbsp; 🌟 brightness 4<br>"}, {"id": 69, "label": "20cm", "artist": "투모로우바이투게더", "genres": ["r&b"], "moods": [], "energy": 2, "brightness": 4, "color": "#6B9DFF", "size": 10, "tooltip": "<b>20cm</b><br>🎤 투모로우바이투게더<br>💿 꿈의 장: MAGIC (2019)<br>🎸 r&b<br>⚡ energy 2 &nbsp; 🌟 brightness 4<br>"}, {"id": 70, "label": "Angel Or Devil", "artist": "투모로우바이투게더", "genres": ["hip hop"], "moods": ["청량", "키치"], "energy": 4, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Angel Or Devil</b><br>🎤 투모로우바이투게더<br>💿 꿈의 장: MAGIC (2019)<br>🎸 hip hop<br>⚡ energy 4 &nbsp; 🌟 brightness 5<br>☀️ 청량 /  키치"}, {"id": 71, "label": "Blue Orangeade", "artist": "투모로우바이투게더", "genres": ["new jack swing"], "moods": ["청량"], "energy": 4, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Blue Orangeade</b><br>🎤 투모로우바이투게더<br>💿 꿈의 장: STAR (2019)<br>🎸 new jack swing<br>⚡ energy 4 &nbsp; 🌟 brightness 5<br>☀️ 청량"}, {"id": 72, "label": "어느날 머리에서 뿔이 자랐다 (CROWN)", "artist": "투모로우바이투게더", "genres": ["synthpop", "dance pop"], "moods": ["청량"], "energy": 4, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>어느날 머리에서 뿔이 자랐다 (CROWN)</b><br>🎤 투모로우바이투게더<br>💿 꿈의 장: STAR (2019)<br>🎸 synthpop / dance pop<br>⚡ energy 4 &nbsp; 🌟 brightness 5<br>☀️ 청량"}, {"id": 73, "label": "Our Summer", "artist": "투모로우바이투게더", "genres": ["house", "dance pop"], "moods": ["청량"], "energy": 3, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Our Summer</b><br>🎤 투모로우바이투게더<br>💿 꿈의 장: STAR (2019)<br>🎸 house / dance pop<br>⚡ energy 3 &nbsp; 🌟 brightness 5<br>☀️ 청량"}, {"id": 74, "label": "Cat & Dog", "artist": "투모로우바이투게더", "genres": ["hip hop", "trap"], "moods": [], "energy": 3, "brightness": 5, "color": "#6B9DFF", "size": 10, "tooltip": "<b>Cat & Dog</b><br>🎤 투모로우바이투게더<br>💿 꿈의 장: STAR (2019)<br>🎸 hip hop / trap<br>⚡ energy 3 &nbsp; 🌟 brightness 5<br>"}, {"id": 75, "label": "별의 낮잠", "artist": "투모로우바이투게더", "genres": ["pop rock", "ballad"], "moods": [], "energy": 1, "brightness": 4, "color": "#6B9DFF", "size": 10, "tooltip": "<b>별의 낮잠</b><br>🎤 투모로우바이투게더<br>💿 꿈의 장: STAR (2019)<br>🎸 pop rock / ballad<br>⚡ energy 1 &nbsp; 🌟 brightness 4<br>"}, {"id": 76, "label": "Talk to You", "artist": "연준", "genres": ["pop rock", "hard rock"], "moods": ["강렬"], "energy": 5, "brightness": 1, "color": "#9DFF6B", "size": 10, "tooltip": "<b>Talk to You</b><br>🎤 연준<br>💿 NO LABELS: PART 01 (2025)<br>🎸 pop rock / hard rock<br>⚡ energy 5 &nbsp; 🌟 brightness 1<br>🔥 강렬"}, {"id": 77, "label": "Forever", "artist": "연준", "genres": ["hip hop", "synthpop"], "moods": [], "energy": 3, "brightness": 4, "color": "#9DFF6B", "size": 10, "tooltip": "<b>Forever</b><br>🎤 연준<br>💿 NO LABELS: PART 01 (2025)<br>🎸 hip hop / synthpop<br>⚡ energy 3 &nbsp; 🌟 brightness 4<br>"}, {"id": 78, "label": "Let Me Tell You (feat. Daniela of KATSEYE)", "artist": "연준", "genres": ["r&b"], "moods": [], "energy": 3, "brightness": 3, "color": "#9DFF6B", "size": 10, "tooltip": "<b>Let Me Tell You (feat. Daniela of KATSEYE)</b><br>🎤 연준<br>💿 NO LABELS: PART 01 (2025)<br>🎸 r&b<br>⚡ energy 3 &nbsp; 🌟 brightness 3<br>"}, {"id": 79, "label": "Do It", "artist": "연준", "genres": ["hip hop"], "moods": [], "energy": 3, "brightness": 4, "color": "#9DFF6B", "size": 10, "tooltip": "<b>Do It</b><br>🎤 연준<br>💿 NO LABELS: PART 01 (2025)<br>🎸 hip hop<br>⚡ energy 3 &nbsp; 🌟 brightness 4<br>"}, {"id": 80, "label": "Nothin’ ’Bout Me", "artist": "연준", "genres": ["hip hop", "pop rock"], "moods": ["강렬"], "energy": 4, "brightness": 2, "color": "#9DFF6B", "size": 10, "tooltip": "<b>Nothin’ ’Bout Me</b><br>🎤 연준<br>💿 NO LABELS: PART 01 (2025)<br>🎸 hip hop / pop rock<br>⚡ energy 4 &nbsp; 🌟 brightness 2<br>🔥 강렬"}, {"id": 81, "label": "Coma", "artist": "연준", "genres": ["hip hop"], "moods": ["강렬"], "energy": 5, "brightness": 1, "color": "#9DFF6B", "size": 10, "tooltip": "<b>Coma</b><br>🎤 연준<br>💿 NO LABELS: PART 01 (2025)<br>🎸 hip hop<br>⚡ energy 5 &nbsp; 🌟 brightness 1<br>🔥 강렬"}, {"id": 82, "label": "GGUM", "artist": "연준", "genres": ["hip hop"], "moods": ["강렬"], "energy": 5, "brightness": 1, "color": "#9DFF6B", "size": 10, "tooltip": "<b>GGUM</b><br>🎤 연준<br>💿 GGUM (2024)<br>🎸 hip hop<br>⚡ energy 5 &nbsp; 🌟 brightness 1<br>🔥 강렬"}, {"id": 83, "label": "Panic", "artist": "범규", "genres": ["pop rock"], "moods": ["벅참"], "energy": 2, "brightness": 3, "color": "#BB8FCE", "size": 10, "tooltip": "<b>Panic</b><br>🎤 범규<br>💿 Panic (2025)<br>🎸 pop rock<br>⚡ energy 2 &nbsp; 🌟 brightness 3<br>💫 벅참"}];
+const RAW_EDGES_BASE = [{"source": 4, "target": 48, "similarity": 1.0, "genre_sim": 1.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 43, "target": 49, "similarity": 1.0, "genre_sim": 1.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 44, "target": 53, "similarity": 1.0, "genre_sim": 1.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 81, "target": 82, "similarity": 1.0, "genre_sim": 1.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 9, "target": 73, "similarity": 0.95, "genre_sim": 1.0, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 46, "target": 77, "similarity": 0.938, "genre_sim": 1.0, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 15, "target": 20, "similarity": 0.911, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 28, "target": 83, "similarity": 0.911, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 61, "target": 81, "similarity": 0.911, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 61, "target": 82, "similarity": 0.911, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 15, "target": 55, "similarity": 0.9, "genre_sim": 1.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 22, "target": 76, "similarity": 0.9, "genre_sim": 1.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 37, "target": 80, "similarity": 0.9, "genre_sim": 1.0, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 36, "target": 39, "similarity": 0.889, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 69, "target": 78, "similarity": 0.875, "genre_sim": 1.0, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 29, "target": 83, "similarity": 0.861, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 52, "target": 55, "similarity": 0.861, "genre_sim": 0.778, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 50, "target": 61, "similarity": 0.857, "genre_sim": 0.643, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 43, "target": 51, "similarity": 0.855, "genre_sim": 0.636, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 49, "target": 51, "similarity": 0.855, "genre_sim": 0.636, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 2, "target": 61, "similarity": 0.85, "genre_sim": 1.0, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 10, "target": 44, "similarity": 0.85, "genre_sim": 1.0, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 10, "target": 53, "similarity": 0.85, "genre_sim": 1.0, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 19, "target": 34, "similarity": 0.85, "genre_sim": 1.0, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 29, "target": 43, "similarity": 0.85, "genre_sim": 1.0, "energy_sim": 0.25, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 29, "target": 49, "similarity": 0.85, "genre_sim": 1.0, "energy_sim": 0.25, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 66, "target": 72, "similarity": 0.836, "genre_sim": 0.714, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 15, "target": 18, "similarity": 0.833, "genre_sim": 0.583, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 37, "target": 81, "similarity": 0.833, "genre_sim": 0.583, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 37, "target": 82, "similarity": 0.833, "genre_sim": 0.583, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 74, "target": 79, "similarity": 0.826, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 7, "target": 14, "similarity": 0.817, "genre_sim": 1.0, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.333}, {"source": 36, "target": 69, "similarity": 0.813, "genre_sim": 1.0, "energy_sim": 1.0, "brightness_sim": 0.25, "mood_sim": 0.0}, {"source": 36, "target": 78, "similarity": 0.812, "genre_sim": 1.0, "energy_sim": 0.75, "brightness_sim": 0.5, "mood_sim": 0.0}, {"source": 20, "target": 55, "similarity": 0.811, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 9, "target": 16, "similarity": 0.805, "genre_sim": 0.636, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 28, "target": 29, "similarity": 0.805, "genre_sim": 0.636, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 9, "target": 67, "similarity": 0.8, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 14, "target": 78, "similarity": 0.8, "genre_sim": 1.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 18, "target": 20, "similarity": 0.8, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 37, "target": 61, "similarity": 0.8, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 44, "target": 47, "similarity": 0.8, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 45, "target": 66, "similarity": 0.8, "genre_sim": 1.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 47, "target": 53, "similarity": 0.8, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 50, "target": 81, "similarity": 0.8, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 50, "target": 82, "similarity": 0.8, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 42, "target": 56, "similarity": 0.795, "genre_sim": 0.714, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 17, "target": 37, "similarity": 0.793, "genre_sim": 0.857, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 17, "target": 80, "similarity": 0.793, "genre_sim": 0.857, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 77, "target": 79, "similarity": 0.792, "genre_sim": 0.583, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 4, "target": 66, "similarity": 0.783, "genre_sim": 0.583, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 48, "target": 66, "similarity": 0.783, "genre_sim": 0.583, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 4, "target": 9, "similarity": 0.782, "genre_sim": 0.455, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 9, "target": 48, "similarity": 0.782, "genre_sim": 0.455, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 62, "target": 78, "similarity": 0.764, "genre_sim": 0.778, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 2, "target": 81, "similarity": 0.761, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 2, "target": 82, "similarity": 0.761, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 8, "target": 83, "similarity": 0.761, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 15, "target": 43, "similarity": 0.761, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 15, "target": 49, "similarity": 0.761, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 15, "target": 51, "similarity": 0.761, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 15, "target": 52, "similarity": 0.761, "genre_sim": 0.778, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 8, "target": 29, "similarity": 0.755, "genre_sim": 0.636, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 16, "target": 73, "similarity": 0.755, "genre_sim": 0.636, "energy_sim": 0.5, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 21, "target": 76, "similarity": 0.755, "genre_sim": 0.636, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 5, "target": 19, "similarity": 0.75, "genre_sim": 0.5, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 6, "target": 35, "similarity": 0.75, "genre_sim": 1.0, "energy_sim": 0.75, "brightness_sim": 0.5, "mood_sim": 0.5}, {"source": 7, "target": 69, "similarity": 0.75, "genre_sim": 1.0, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 7, "target": 78, "similarity": 0.75, "genre_sim": 1.0, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 16, "target": 67, "similarity": 0.75, "genre_sim": 0.5, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 21, "target": 43, "similarity": 0.75, "genre_sim": 1.0, "energy_sim": 1.0, "brightness_sim": 0.25, "mood_sim": 0.5}, {"source": 21, "target": 49, "similarity": 0.75, "genre_sim": 1.0, "energy_sim": 1.0, "brightness_sim": 0.25, "mood_sim": 0.5}, {"source": 46, "target": 74, "similarity": 0.75, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 56, "target": 77, "similarity": 0.75, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 67, "target": 73, "similarity": 0.75, "genre_sim": 0.5, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 37, "target": 50, "similarity": 0.747, "genre_sim": 0.368, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 4, "target": 44, "similarity": 0.743, "genre_sim": 0.357, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 4, "target": 47, "similarity": 0.743, "genre_sim": 0.357, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 4, "target": 53, "similarity": 0.743, "genre_sim": 0.357, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 4, "target": 72, "similarity": 0.743, "genre_sim": 0.357, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 44, "target": 48, "similarity": 0.743, "genre_sim": 0.357, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 47, "target": 48, "similarity": 0.743, "genre_sim": 0.357, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 48, "target": 53, "similarity": 0.743, "genre_sim": 0.357, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 48, "target": 72, "similarity": 0.743, "genre_sim": 0.357, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 18, "target": 55, "similarity": 0.733, "genre_sim": 0.583, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 47, "target": 57, "similarity": 0.733, "genre_sim": 0.583, "energy_sim": 1.0, "brightness_sim": 0.5, "mood_sim": 1.0}, {"source": 80, "target": 81, "similarity": 0.733, "genre_sim": 0.583, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 80, "target": 82, "similarity": 0.733, "genre_sim": 0.583, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 4, "target": 73, "similarity": 0.732, "genre_sim": 0.455, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 48, "target": 73, "similarity": 0.732, "genre_sim": 0.455, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 46, "target": 79, "similarity": 0.729, "genre_sim": 0.583, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 56, "target": 69, "similarity": 0.729, "genre_sim": 0.583, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 56, "target": 78, "similarity": 0.729, "genre_sim": 0.583, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 9, "target": 44, "similarity": 0.725, "genre_sim": 0.312, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 9, "target": 47, "similarity": 0.725, "genre_sim": 0.312, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 9, "target": 53, "similarity": 0.725, "genre_sim": 0.312, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 9, "target": 72, "similarity": 0.725, "genre_sim": 0.312, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 37, "target": 76, "similarity": 0.725, "genre_sim": 0.312, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 41, "target": 43, "similarity": 0.725, "genre_sim": 0.438, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 41, "target": 49, "similarity": 0.725, "genre_sim": 0.438, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 41, "target": 51, "similarity": 0.725, "genre_sim": 0.438, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 66, "target": 73, "similarity": 0.725, "genre_sim": 0.312, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 21, "target": 22, "similarity": 0.721, "genre_sim": 0.636, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.333}, {"source": 26, "target": 27, "similarity": 0.717, "genre_sim": 1.0, "energy_sim": 0.75, "brightness_sim": 0.5, "mood_sim": 0.333}, {"source": 7, "target": 25, "similarity": 0.711, "genre_sim": 0.778, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 40, "target": 64, "similarity": 0.711, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 43, "target": 83, "similarity": 0.711, "genre_sim": 0.778, "energy_sim": 0.25, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 49, "target": 83, "similarity": 0.711, "genre_sim": 0.778, "energy_sim": 0.25, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 51, "target": 83, "similarity": 0.711, "genre_sim": 0.778, "energy_sim": 0.25, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 2, "target": 50, "similarity": 0.707, "genre_sim": 0.643, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 17, "target": 61, "similarity": 0.707, "genre_sim": 0.643, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 8, "target": 28, "similarity": 0.705, "genre_sim": 0.636, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 20, "target": 43, "similarity": 0.705, "genre_sim": 0.636, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 20, "target": 49, "similarity": 0.705, "genre_sim": 0.636, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 20, "target": 51, "similarity": 0.705, "genre_sim": 0.636, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 20, "target": 52, "similarity": 0.705, "genre_sim": 0.636, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 29, "target": 51, "similarity": 0.705, "genre_sim": 0.636, "energy_sim": 0.25, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 44, "target": 72, "similarity": 0.705, "genre_sim": 0.263, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 47, "target": 72, "similarity": 0.705, "genre_sim": 0.263, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 53, "target": 72, "similarity": 0.705, "genre_sim": 0.263, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 36, "target": 62, "similarity": 0.701, "genre_sim": 0.778, "energy_sim": 0.5, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 39, "target": 69, "similarity": 0.701, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 0.25, "mood_sim": 0.0}, {"source": 39, "target": 78, "similarity": 0.701, "genre_sim": 0.778, "energy_sim": 0.75, "brightness_sim": 0.5, "mood_sim": 0.0}, {"source": 5, "target": 39, "similarity": 0.7, "genre_sim": 1.0, "energy_sim": 0.5, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 7, "target": 36, "similarity": 0.7, "genre_sim": 1.0, "energy_sim": 1.0, "brightness_sim": 0.5, "mood_sim": 0.0}, {"source": 14, "target": 69, "similarity": 0.7, "genre_sim": 1.0, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 15, "target": 41, "similarity": 0.7, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 23, "target": 64, "similarity": 0.7, "genre_sim": 1.0, "energy_sim": 1.0, "brightness_sim": 0.5, "mood_sim": 0.0}, {"source": 35, "target": 38, "similarity": 0.7, "genre_sim": 1.0, "energy_sim": 0.5, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 43, "target": 52, "similarity": 0.7, "genre_sim": 1.0, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 49, "target": 52, "similarity": 0.7, "genre_sim": 1.0, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 61, "target": 80, "similarity": 0.7, "genre_sim": 0.5, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 64, "target": 72, "similarity": 0.7, "genre_sim": 0.5, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 70, "target": 79, "similarity": 0.7, "genre_sim": 1.0, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 1, "target": 5, "similarity": 0.695, "genre_sim": 0.238, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 58, "target": 81, "similarity": 0.693, "genre_sim": 0.357, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 58, "target": 82, "similarity": 0.693, "genre_sim": 0.357, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 42, "target": 77, "similarity": 0.688, "genre_sim": 0.5, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 46, "target": 56, "similarity": 0.688, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 74, "target": 77, "similarity": 0.688, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 30, "target": 47, "similarity": 0.686, "genre_sim": 0.714, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 4, "target": 27, "similarity": 0.682, "genre_sim": 0.455, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 27, "target": 48, "similarity": 0.682, "genre_sim": 0.455, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 42, "target": 69, "similarity": 0.679, "genre_sim": 0.357, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 68, "target": 75, "similarity": 0.679, "genre_sim": 0.357, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 4, "target": 67, "similarity": 0.675, "genre_sim": 0.188, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 6, "target": 8, "similarity": 0.675, "genre_sim": 0.312, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 9, "target": 66, "similarity": 0.675, "genre_sim": 0.312, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 10, "target": 27, "similarity": 0.675, "genre_sim": 0.312, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 20, "target": 41, "similarity": 0.675, "genre_sim": 0.438, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 44, "target": 71, "similarity": 0.675, "genre_sim": 0.188, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 44, "target": 73, "similarity": 0.675, "genre_sim": 0.312, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 47, "target": 71, "similarity": 0.675, "genre_sim": 0.188, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 47, "target": 73, "similarity": 0.675, "genre_sim": 0.312, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 48, "target": 67, "similarity": 0.675, "genre_sim": 0.188, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 53, "target": 71, "similarity": 0.675, "genre_sim": 0.188, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 53, "target": 73, "similarity": 0.675, "genre_sim": 0.312, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 58, "target": 61, "similarity": 0.675, "genre_sim": 0.312, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 72, "target": 73, "similarity": 0.675, "genre_sim": 0.312, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 3, "target": 22, "similarity": 0.671, "genre_sim": 0.636, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.333}, {"source": 38, "target": 75, "similarity": 0.67, "genre_sim": 0.714, "energy_sim": 0.75, "brightness_sim": 0.5, "mood_sim": 0.0}, {"source": 8, "target": 20, "similarity": 0.667, "genre_sim": 1.0, "energy_sim": 0.25, "brightness_sim": 0.75, "mood_sim": 0.333}, {"source": 14, "target": 25, "similarity": 0.661, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 17, "target": 22, "similarity": 0.661, "genre_sim": 0.278, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 25, "target": 78, "similarity": 0.661, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 43, "target": 55, "similarity": 0.661, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 49, "target": 55, "similarity": 0.661, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 51, "target": 55, "similarity": 0.661, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 70, "target": 74, "similarity": 0.661, "genre_sim": 0.778, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 44, "target": 67, "similarity": 0.657, "genre_sim": 0.143, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 47, "target": 67, "similarity": 0.657, "genre_sim": 0.143, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 53, "target": 67, "similarity": 0.657, "genre_sim": 0.143, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 67, "target": 72, "similarity": 0.657, "genre_sim": 0.143, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 28, "target": 43, "similarity": 0.655, "genre_sim": 0.636, "energy_sim": 0.25, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 28, "target": 49, "similarity": 0.655, "genre_sim": 0.636, "energy_sim": 0.25, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 28, "target": 51, "similarity": 0.655, "genre_sim": 0.636, "energy_sim": 0.25, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 30, "target": 33, "similarity": 0.655, "genre_sim": 0.263, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 37, "target": 58, "similarity": 0.655, "genre_sim": 0.263, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 44, "target": 66, "similarity": 0.655, "genre_sim": 0.263, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 47, "target": 66, "similarity": 0.655, "genre_sim": 0.263, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 53, "target": 66, "similarity": 0.655, "genre_sim": 0.263, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 58, "target": 80, "similarity": 0.655, "genre_sim": 0.263, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 9, "target": 27, "similarity": 0.654, "genre_sim": 0.385, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 2, "target": 37, "similarity": 0.65, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 2, "target": 80, "similarity": 0.65, "genre_sim": 0.5, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 6, "target": 38, "similarity": 0.65, "genre_sim": 1.0, "energy_sim": 0.75, "brightness_sim": 0.5, "mood_sim": 0.0}, {"source": 10, "target": 30, "similarity": 0.65, "genre_sim": 0.5, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 10, "target": 47, "similarity": 0.65, "genre_sim": 0.5, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 14, "target": 36, "similarity": 0.65, "genre_sim": 1.0, "energy_sim": 0.75, "brightness_sim": 0.5, "mood_sim": 0.0}, {"source": 15, "target": 83, "similarity": 0.65, "genre_sim": 1.0, "energy_sim": 0.25, "brightness_sim": 0.5, "mood_sim": 0.5}, {"source": 17, "target": 81, "similarity": 0.65, "genre_sim": 0.5, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 17, "target": 82, "similarity": 0.65, "genre_sim": 0.5, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 18, "target": 43, "similarity": 0.65, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 18, "target": 49, "similarity": 0.65, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 18, "target": 51, "similarity": 0.65, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 18, "target": 52, "similarity": 0.65, "genre_sim": 0.5, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 29, "target": 52, "similarity": 0.65, "genre_sim": 1.0, "energy_sim": 0.5, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 18, "target": 41, "similarity": 0.647, "genre_sim": 0.368, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 50, "target": 80, "similarity": 0.647, "genre_sim": 0.368, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 50, "target": 58, "similarity": 0.645, "genre_sim": 0.238, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 4, "target": 16, "similarity": 0.642, "genre_sim": 0.231, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 16, "target": 48, "similarity": 0.642, "genre_sim": 0.231, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 17, "target": 50, "similarity": 0.639, "genre_sim": 0.474, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 62, "target": 69, "similarity": 0.639, "genre_sim": 0.778, "energy_sim": 0.5, "brightness_sim": 0.5, "mood_sim": 0.0}, {"source": 45, "target": 72, "similarity": 0.636, "genre_sim": 0.714, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 4, "target": 30, "similarity": 0.633, "genre_sim": 0.583, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 30, "target": 48, "similarity": 0.633, "genre_sim": 0.583, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 45, "target": 46, "similarity": 0.632, "genre_sim": 0.263, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 39, "target": 62, "similarity": 0.631, "genre_sim": 0.636, "energy_sim": 0.5, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 2, "target": 58, "similarity": 0.625, "genre_sim": 0.312, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 10, "target": 73, "similarity": 0.625, "genre_sim": 0.312, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 21, "target": 37, "similarity": 0.625, "genre_sim": 0.312, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 22, "target": 37, "similarity": 0.625, "genre_sim": 0.312, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 27, "target": 30, "similarity": 0.625, "genre_sim": 0.312, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 27, "target": 44, "similarity": 0.625, "genre_sim": 0.312, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 27, "target": 47, "similarity": 0.625, "genre_sim": 0.312, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 27, "target": 53, "similarity": 0.625, "genre_sim": 0.312, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 27, "target": 72, "similarity": 0.625, "genre_sim": 0.312, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 42, "target": 46, "similarity": 0.625, "genre_sim": 0.5, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 42, "target": 59, "similarity": 0.625, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 0.5, "mood_sim": 0.0}, {"source": 76, "target": 80, "similarity": 0.625, "genre_sim": 0.312, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 2, "target": 17, "similarity": 0.624, "genre_sim": 0.643, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 0.333}, {"source": 5, "target": 12, "similarity": 0.617, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.333}, {"source": 16, "target": 44, "similarity": 0.617, "genre_sim": 0.167, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 16, "target": 47, "similarity": 0.617, "genre_sim": 0.167, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 16, "target": 53, "similarity": 0.617, "genre_sim": 0.167, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 16, "target": 72, "similarity": 0.617, "genre_sim": 0.167, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 4, "target": 11, "similarity": 0.615, "genre_sim": 0.412, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 11, "target": 48, "similarity": 0.615, "genre_sim": 0.412, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 5, "target": 36, "similarity": 0.611, "genre_sim": 0.778, "energy_sim": 0.5, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 7, "target": 39, "similarity": 0.611, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 0.5, "mood_sim": 0.0}, {"source": 14, "target": 62, "similarity": 0.611, "genre_sim": 0.778, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 15, "target": 29, "similarity": 0.611, "genre_sim": 0.778, "energy_sim": 0.25, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 23, "target": 40, "similarity": 0.611, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 0.5, "mood_sim": 0.0}, {"source": 25, "target": 36, "similarity": 0.611, "genre_sim": 0.778, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 60, "target": 83, "similarity": 0.611, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 0.5, "mood_sim": 0.0}, {"source": 57, "target": 71, "similarity": 0.609, "genre_sim": 0.273, "energy_sim": 1.0, "brightness_sim": 0.5, "mood_sim": 1.0}, {"source": 66, "target": 67, "similarity": 0.607, "genre_sim": 0.143, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 3, "target": 21, "similarity": 0.605, "genre_sim": 0.636, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 3, "target": 76, "similarity": 0.605, "genre_sim": 0.636, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 5, "target": 62, "similarity": 0.605, "genre_sim": 0.636, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 8, "target": 43, "similarity": 0.605, "genre_sim": 0.636, "energy_sim": 0.25, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 8, "target": 49, "similarity": 0.605, "genre_sim": 0.636, "energy_sim": 0.25, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 8, "target": 51, "similarity": 0.605, "genre_sim": 0.636, "energy_sim": 0.25, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 10, "target": 33, "similarity": 0.605, "genre_sim": 0.263, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 10, "target": 66, "similarity": 0.605, "genre_sim": 0.263, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 21, "target": 51, "similarity": 0.605, "genre_sim": 0.636, "energy_sim": 1.0, "brightness_sim": 0.25, "mood_sim": 0.5}, {"source": 25, "target": 62, "similarity": 0.605, "genre_sim": 0.636, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 27, "target": 73, "similarity": 0.604, "genre_sim": 0.385, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 38, "target": 68, "similarity": 0.604, "genre_sim": 0.583, "energy_sim": 0.75, "brightness_sim": 0.5, "mood_sim": 0.0}, {"source": 1, "target": 3, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 3, "target": 5, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 4, "target": 52, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 4, "target": 71, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 5, "target": 34, "similarity": 0.6, "genre_sim": 0.5, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 9, "target": 52, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 9, "target": 71, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 12, "target": 13, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 12, "target": 14, "similarity": 0.6, "genre_sim": 0.583, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 0.333}, {"source": 12, "target": 62, "similarity": 0.6, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 16, "target": 55, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 21, "target": 29, "similarity": 0.6, "genre_sim": 1.0, "energy_sim": 0.25, "brightness_sim": 0.25, "mood_sim": 0.5}, {"source": 25, "target": 34, "similarity": 0.6, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 30, "target": 44, "similarity": 0.6, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 30, "target": 53, "similarity": 0.6, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 33, "target": 74, "similarity": 0.6, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 40, "target": 43, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 40, "target": 49, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 40, "target": 51, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 41, "target": 55, "similarity": 0.6, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 44, "target": 52, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 47, "target": 52, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 48, "target": 52, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 48, "target": 71, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 50, "target": 76, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 52, "target": 53, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 52, "target": 67, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 52, "target": 71, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 52, "target": 72, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 61, "target": 76, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 67, "target": 71, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 71, "target": 72, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 76, "target": 81, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 76, "target": 82, "similarity": 0.6, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 1, "target": 19, "similarity": 0.596, "genre_sim": 0.115, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 38, "target": 60, "similarity": 0.594, "genre_sim": 0.312, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 56, "target": 79, "similarity": 0.594, "genre_sim": 0.188, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 4, "target": 10, "similarity": 0.593, "genre_sim": 0.357, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 10, "target": 48, "similarity": 0.593, "genre_sim": 0.357, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 18, "target": 40, "similarity": 0.593, "genre_sim": 0.357, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 35, "target": 83, "similarity": 0.593, "genre_sim": 0.357, "energy_sim": 0.5, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 6, "target": 75, "similarity": 0.586, "genre_sim": 0.714, "energy_sim": 0.5, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 1, "target": 31, "similarity": 0.583, "genre_sim": 0.208, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 4, "target": 45, "similarity": 0.583, "genre_sim": 0.583, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 14, "target": 34, "similarity": 0.583, "genre_sim": 0.583, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 14, "target": 56, "similarity": 0.583, "genre_sim": 0.583, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 19, "target": 36, "similarity": 0.583, "genre_sim": 0.583, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 33, "target": 70, "similarity": 0.583, "genre_sim": 0.583, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 33, "target": 79, "similarity": 0.583, "genre_sim": 0.583, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 34, "target": 78, "similarity": 0.583, "genre_sim": 0.583, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 45, "target": 48, "similarity": 0.583, "genre_sim": 0.583, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 46, "target": 70, "similarity": 0.583, "genre_sim": 0.583, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 3, "target": 17, "similarity": 0.578, "genre_sim": 0.278, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.333}, {"source": 5, "target": 17, "similarity": 0.578, "genre_sim": 0.278, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.333}, {"source": 8, "target": 15, "similarity": 0.578, "genre_sim": 0.778, "energy_sim": 0.25, "brightness_sim": 0.75, "mood_sim": 0.333}, {"source": 15, "target": 21, "similarity": 0.578, "genre_sim": 0.778, "energy_sim": 1.0, "brightness_sim": 0.0, "mood_sim": 0.333}, {"source": 11, "target": 12, "similarity": 0.577, "genre_sim": 0.526, "energy_sim": 1.0, "brightness_sim": 0.5, "mood_sim": 0.333}, {"source": 6, "target": 29, "similarity": 0.575, "genre_sim": 0.312, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 9, "target": 10, "similarity": 0.575, "genre_sim": 0.312, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 18, "target": 64, "similarity": 0.575, "genre_sim": 0.312, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 27, "target": 33, "similarity": 0.575, "genre_sim": 0.312, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 27, "target": 66, "similarity": 0.575, "genre_sim": 0.312, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 28, "target": 35, "similarity": 0.575, "genre_sim": 0.312, "energy_sim": 0.5, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 29, "target": 41, "similarity": 0.575, "genre_sim": 0.438, "energy_sim": 0.25, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 35, "target": 43, "similarity": 0.575, "genre_sim": 0.312, "energy_sim": 0.75, "brightness_sim": 0.5, "mood_sim": 1.0}, {"source": 35, "target": 49, "similarity": 0.575, "genre_sim": 0.312, "energy_sim": 0.75, "brightness_sim": 0.5, "mood_sim": 1.0}, {"source": 35, "target": 51, "similarity": 0.575, "genre_sim": 0.312, "energy_sim": 0.75, "brightness_sim": 0.5, "mood_sim": 1.0}, {"source": 44, "target": 57, "similarity": 0.575, "genre_sim": 0.188, "energy_sim": 1.0, "brightness_sim": 0.5, "mood_sim": 1.0}, {"source": 53, "target": 57, "similarity": 0.575, "genre_sim": 0.188, "energy_sim": 1.0, "brightness_sim": 0.5, "mood_sim": 1.0}, {"source": 64, "target": 66, "similarity": 0.575, "genre_sim": 0.312, "energy_sim": 0.5, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 69, "target": 79, "similarity": 0.574, "genre_sim": 0.273, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 78, "target": 79, "similarity": 0.574, "genre_sim": 0.273, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 1, "target": 12, "similarity": 0.569, "genre_sim": 0.381, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.333}, {"source": 45, "target": 56, "similarity": 0.569, "genre_sim": 0.263, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 45, "target": 77, "similarity": 0.569, "genre_sim": 0.263, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 16, "target": 66, "similarity": 0.567, "genre_sim": 0.167, "energy_sim": 0.5, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 27, "target": 67, "similarity": 0.567, "genre_sim": 0.167, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 32, "target": 58, "similarity": 0.565, "genre_sim": 0.412, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 33, "target": 46, "similarity": 0.565, "genre_sim": 0.412, "energy_sim": 1.0, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 56, "target": 62, "similarity": 0.562, "genre_sim": 0.5, "energy_sim": 0.75, "brightness_sim": 0.5, "mood_sim": 0.0}, {"source": 5, "target": 14, "similarity": 0.561, "genre_sim": 0.778, "energy_sim": 0.75, "brightness_sim": 0.5, "mood_sim": 0.0}, {"source": 5, "target": 78, "similarity": 0.561, "genre_sim": 0.778, "energy_sim": 0.75, "brightness_sim": 0.5, "mood_sim": 0.0}, {"source": 7, "target": 62, "similarity": 0.561, "genre_sim": 0.778, "energy_sim": 0.5, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 14, "target": 39, "similarity": 0.561, "genre_sim": 0.778, "energy_sim": 0.75, "brightness_sim": 0.5, "mood_sim": 0.0}, {"source": 15, "target": 28, "similarity": 0.561, "genre_sim": 0.778, "energy_sim": 0.25, "brightness_sim": 0.5, "mood_sim": 0.5}, {"source": 17, "target": 76, "similarity": 0.561, "genre_sim": 0.278, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 20, "target": 83, "similarity": 0.561, "genre_sim": 0.778, "energy_sim": 0.25, "brightness_sim": 0.5, "mood_sim": 0.5}, {"source": 21, "target": 83, "similarity": 0.561, "genre_sim": 0.778, "energy_sim": 0.25, "brightness_sim": 0.5, "mood_sim": 0.5}, {"source": 25, "target": 69, "similarity": 0.561, "genre_sim": 0.778, "energy_sim": 0.75, "brightness_sim": 0.5, "mood_sim": 0.0}, {"source": 3, "target": 60, "similarity": 0.555, "genre_sim": 0.636, "energy_sim": 0.5, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 5, "target": 25, "similarity": 0.555, "genre_sim": 0.636, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 10, "target": 72, "similarity": 0.555, "genre_sim": 0.263, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 12, "target": 31, "similarity": 0.555, "genre_sim": 0.263, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 18, "target": 72, "similarity": 0.555, "genre_sim": 0.263, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.5}, {"source": 20, "target": 29, "similarity": 0.555, "genre_sim": 0.636, "energy_sim": 0.25, "brightness_sim": 0.75, "mood_sim": 0.5}, {"source": 25, "target": 39, "similarity": 0.555, "genre_sim": 0.636, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 28, "target": 60, "similarity": 0.555, "genre_sim": 0.636, "energy_sim": 1.0, "brightness_sim": 0.5, "mood_sim": 0.0}, {"source": 51, "target": 52, "similarity": 0.555, "genre_sim": 0.636, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 42, "target": 78, "similarity": 0.554, "genre_sim": 0.357, "energy_sim": 0.75, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 2, "target": 21, "similarity": 0.55, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 2, "target": 74, "similarity": 0.55, "genre_sim": 1.0, "energy_sim": 0.5, "brightness_sim": 0.25, "mood_sim": 0.0}, {"source": 3, "target": 19, "similarity": 0.55, "genre_sim": 0.0, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 4, "target": 55, "similarity": 0.55, "genre_sim": 0.0, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 8, "target": 75, "similarity": 0.55, "genre_sim": 0.5, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 9, "target": 55, "similarity": 0.55, "genre_sim": 0.0, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 12, "target": 25, "similarity": 0.55, "genre_sim": 0.5, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 12, "target": 58, "similarity": 0.55, "genre_sim": 0.5, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 16, "target": 52, "similarity": 0.55, "genre_sim": 0.0, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 16, "target": 64, "similarity": 0.55, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 16, "target": 71, "similarity": 0.55, "genre_sim": 0.0, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 19, "target": 25, "similarity": 0.55, "genre_sim": 0.5, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 0.0}, {"source": 19, "target": 39, "similarity": 0.55, "genre_sim": 0.5, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 21, "target": 52, "similarity": 0.55, "genre_sim": 1.0, "energy_sim": 0.75, "brightness_sim": 0.0, "mood_sim": 0.0}, {"source": 29, "target": 75, "similarity": 0.55, "genre_sim": 0.5, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 31, "target": 45, "similarity": 0.55, "genre_sim": 1.0, "energy_sim": 0.75, "brightness_sim": 0.0, "mood_sim": 0.0}, {"source": 31, "target": 66, "similarity": 0.55, "genre_sim": 1.0, "energy_sim": 0.75, "brightness_sim": 0.0, "mood_sim": 0.0}, {"source": 34, "target": 62, "similarity": 0.55, "genre_sim": 0.5, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 0.0}, {"source": 40, "target": 41, "similarity": 0.55, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 41, "target": 83, "similarity": 0.55, "genre_sim": 0.5, "energy_sim": 0.25, "brightness_sim": 0.5, "mood_sim": 1.0}, {"source": 44, "target": 55, "similarity": 0.55, "genre_sim": 0.0, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 47, "target": 55, "similarity": 0.55, "genre_sim": 0.0, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 48, "target": 55, "similarity": 0.55, "genre_sim": 0.0, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 52, "target": 66, "similarity": 0.55, "genre_sim": 0.0, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 52, "target": 73, "similarity": 0.55, "genre_sim": 0.0, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 53, "target": 55, "similarity": 0.55, "genre_sim": 0.0, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 55, "target": 64, "similarity": 0.55, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 55, "target": 67, "similarity": 0.55, "genre_sim": 0.0, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 55, "target": 71, "similarity": 0.55, "genre_sim": 0.0, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 55, "target": 72, "similarity": 0.55, "genre_sim": 0.0, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 55, "target": 83, "similarity": 0.55, "genre_sim": 1.0, "energy_sim": 0.25, "brightness_sim": 0.5, "mood_sim": 0.0}, {"source": 58, "target": 76, "similarity": 0.55, "genre_sim": 0.0, "energy_sim": 1.0, "brightness_sim": 0.75, "mood_sim": 1.0}, {"source": 66, "target": 71, "similarity": 0.55, "genre_sim": 0.0, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 70, "target": 81, "similarity": 0.55, "genre_sim": 1.0, "energy_sim": 0.75, "brightness_sim": 0.0, "mood_sim": 0.0}, {"source": 70, "target": 82, "similarity": 0.55, "genre_sim": 1.0, "energy_sim": 0.75, "brightness_sim": 0.0, "mood_sim": 0.0}, {"source": 71, "target": 73, "similarity": 0.55, "genre_sim": 0.0, "energy_sim": 0.75, "brightness_sim": 1.0, "mood_sim": 1.0}, {"source": 79, "target": 81, "similarity": 0.55, "genre_sim": 1.0, "energy_sim": 0.5, "brightness_sim": 0.25, "mood_sim": 0.0}, {"source": 79, "target": 82, "similarity": 0.55, "genre_sim": 1.0, "energy_sim": 0.5, "brightness_sim": 0.25, "mood_sim": 0.0}];
+const GENRE_FAMILY = {"dance pop": "electronic_dance", "house": "electronic_dance", "uk garage": "electronic_dance", "jersey club": "electronic_dance", "drum & bass": "electronic_dance", "breakbeat": "electronic_dance", "edm": "electronic_dance", "rave": "electronic_dance", "hardstyle": "electronic_dance", "electronic dance": "electronic_dance", "synthpop": "synth_pop", "new wave": "synth_pop", "hyperpop": "synth_pop", "city pop": "synth_pop", "dream pop": "synth_pop", "disco": "disco_funk", "funk pop": "disco_funk", "new jack swing": "disco_funk", "miami bass": "disco_funk", "dancehall": "global_dance", "moombahton": "global_dance", "reggaeton": "global_dance", "brazilian funk": "global_dance", "balie funk": "global_dance", "afrobeats": "global_dance", "latin pop": "global_dance", "hip hop": "hip_hop_rb", "trap": "hip_hop_rb", "old-school hip hop": "hip_hop_rb", "r&b": "hip_hop_rb", "alternative r&b": "hip_hop_rb", "soul": "hip_hop_rb", "pop rock": "rock", "hard rock": "rock", "indie rock": "rock", "alternative rock": "rock", "emo rock": "rock", "britpop": "rock", "pop punk": "rock", "punk rock": "rock", "stadium rock": "rock", "reggae rock": "rock", "ballad": "soft_pop", "indie pop": "soft_pop", "alternative pop": "soft_pop", "acoustic pop": "soft_pop", "pop": "soft_pop"};
+const FAMILY_WEIGHT = 1.5;
+
+// ── 장르 유사도 (family-augmented weighted Jaccard) ───────────
+function genreSimFn(ag, bg) {
+  if (!ag.length || !bg.length) return 0;
+  function buildWeights(genres) {
+    const w = {};
+    genres.forEach((g, i) => {
+      w[g] = i === 0 ? 2 : 1;
+      const fam = GENRE_FAMILY[g];
+      if (fam) w[fam] = Math.max(w[fam] || 0, FAMILY_WEIGHT);
+    });
+    return w;
+  }
+  const wa = buildWeights(ag), wb = buildWeights(bg);
+  const all = new Set([...Object.keys(wa), ...Object.keys(wb)]);
+  let inter = 0, union = 0;
+  all.forEach(g => {
+    inter += Math.min(wa[g] || 0, wb[g] || 0);
+    union += Math.max(wa[g] || 0, wb[g] || 0);
+  });
+  return union ? inter / union : 0;
+}
+
+// ── 색상 스케일: 유사도 0.35 ~ 1.0 → dim grey → bright gold ──
+const simColor = d3.scaleSequential()
+  .domain([0.35, 0.9])
+  .interpolator(d3.interpolate("#2a2a4a", "#aaddff"));
+
+const width  = window.innerWidth;
+const height = window.innerHeight;
+
+const svg = d3.select("#canvas").attr("width", width).attr("height", height);
+const g   = svg.append("g");
+const zoom = d3.zoom().scaleExtent([0.15, 6]).on("zoom", e => g.attr("transform", e.transform));
+svg.call(zoom);
+
+const linkLayer = g.append("g").attr("class", "links");
+const nodeLayer = g.append("g").attr("class", "nodes");
+const tooltip   = document.getElementById("tooltip");
+
+let simulation = d3.forceSimulation()
+  .force("link",      d3.forceLink().id(d => d.id).distance(d => 120 - d.similarity * 70))
+  .force("charge",    d3.forceManyBody().strength(-70))
+  .force("center",    d3.forceCenter(width/2, height/2))
+  .force("collision", d3.forceCollide().radius(d => d.size + 5));
+
+let linkSel, nodeSel;
+let currentEdges = RAW_EDGES_BASE;  // may be recalculated
+let displayedNodes = [], displayedEdges = [];
+
+// ── 유사도 바 HTML ────────────────────────────────────────────
+function simBarHTML(label, val) {
+  const pct = Math.round(val * 100);
+  const color = d3.interpolateRdYlGn(val);
+  return `<div class="sim-row">
+    <span style="width:60px">${label}</span>
+    <div class="sim-bar-bg"><div class="sim-bar" style="width:${pct}%;background:${color}"></div></div>
+    <span style="width:28px;text-align:right;color:#ccc">${pct}%</span>
+  </div>`;
+}
+
+// ── 메인 렌더 ─────────────────────────────────────────────────
+function update(nodes, edges) {
+  displayedNodes = nodes;
+  displayedEdges = edges;
+  const nodeMap    = new Map(nodes.map(n => [n.id, n]));
+  const validEdges = edges
+    .filter(e => nodeMap.has(e.source?.id ?? e.source) && nodeMap.has(e.target?.id ?? e.target))
+    .map(e => ({ ...e, source: e.source?.id ?? e.source, target: e.target?.id ?? e.target }));
+
+  // 링크
+  linkSel = linkLayer.selectAll("line")
+    .data(validEdges, d => d.source + "-" + d.target)
+    .join("line")
+    .attr("stroke",         d => simColor(d.similarity))
+    .attr("stroke-width",   d => d.similarity * 2.5)
+    .attr("stroke-opacity", d => 0.2 + d.similarity * 0.5)
+    .on("mouseover", (event, d) => {
+      const na = nodeMap.get(d.source?.id ?? d.source);
+      const nb = nodeMap.get(d.target?.id ?? d.target);
+      if (!na || !nb) return;
+      tooltip.style.display = "block";
+      tooltip.innerHTML = `
+        <b>${na.label}</b> ↔ <b>${nb.label}</b><br>
+        <span style="color:#aaddff;font-size:13px">종합 유사도: ${Math.round(d.similarity*100)}%</span>
+        <div class="sim-bar-wrap">
+          ${simBarHTML("장르", d.genre_sim)}
+          ${simBarHTML("Energy", d.energy_sim)}
+          ${simBarHTML("Brightness", d.brightness_sim)}
+          ${simBarHTML("무드", d.mood_sim)}
+        </div>`;
+    })
+    .on("mousemove", ev => {
+      tooltip.style.left = (ev.clientX + 14) + "px";
+      tooltip.style.top  = (ev.clientY - 10) + "px";
+    })
+    .on("mouseout", () => { tooltip.style.display = "none"; });
+
+  // 노드
+  nodeSel = nodeLayer.selectAll("g.node")
+    .data(nodes, d => d.id)
+    .join(
+      enter => {
+        const ng = enter.append("g").attr("class", "node").call(drag(simulation));
+        ng.append("circle");
+        ng.append("text").attr("text-anchor", "middle");
+        return ng;
+      }
+    );
+
+  nodeSel.select("circle")
+    .attr("r",    d => d.size)
+    .attr("fill", d => d.color)
+    .on("mouseover", (event, d) => {
+      tooltip.style.display = "block";
+      tooltip.innerHTML = d.tooltip;
+    })
+    .on("mousemove", ev => {
+      tooltip.style.left = (ev.clientX + 14) + "px";
+      tooltip.style.top  = (ev.clientY - 10) + "px";
+    })
+    .on("mouseout", () => { tooltip.style.display = "none"; })
+    .on("click", (ev, d) => highlightNode(d, nodes, validEdges));
+
+  nodeSel.select("text")
+    .attr("dy", d => d.size + 12)
+    .text(d => d.label.length > 14 ? d.label.slice(0,13) + "…" : d.label);
+
+  simulation.nodes(nodes).on("tick", () => {
+    linkSel
+      .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+      .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+    nodeSel.attr("transform", d => `translate(${d.x},${d.y})`);
+  });
+  simulation.force("link").links(validEdges);
+  simulation.alpha(0.3).restart();
+
+  document.getElementById("s-nodes").textContent = nodes.length;
+  document.getElementById("s-edges").textContent = validEdges.length;
+}
+
+// ── 하이라이트 ───────────────────────────────────────────────
+let highlighted = null;
+function highlightNode(d, nodes, edges) {
+  if (highlighted === d.id) {
+    highlighted = null;
+    nodeSel.select("circle").attr("opacity", 1).style("stroke", null).style("stroke-width", null);
+    nodeSel.select("text").style("opacity", null);
+    linkSel.attr("stroke", e => simColor(e.similarity))
+           .attr("stroke-opacity", e => 0.2 + e.similarity * 0.5);
+    return;
+  }
+  highlighted = d.id;
+  const connectedIds = new Set([d.id]);
+  edges.forEach(e => {
+    const s = e.source?.id ?? e.source, t = e.target?.id ?? e.target;
+    if (s === d.id) connectedIds.add(t);
+    if (t === d.id) connectedIds.add(s);
+  });
+  nodeSel.select("circle")
+    .attr("opacity", n => connectedIds.has(n.id) ? 1 : 0.12)
+    .style("stroke", n => n.id === d.id ? "white" : null)
+    .style("stroke-width", n => n.id === d.id ? "2.5px" : null);
+  nodeSel.select("text")
+    .style("opacity", n => connectedIds.has(n.id) ? 1 : 0);
+  nodeSel.filter(n => connectedIds.has(n.id)).raise();
+  linkSel
+    .attr("stroke", e => {
+      const s = e.source?.id ?? e.source, t = e.target?.id ?? e.target;
+      return (s===d.id || t===d.id) ? "#FFD700" : "#2a2a4a";
+    })
+    .attr("stroke-opacity", e => {
+      const s = e.source?.id ?? e.source, t = e.target?.id ?? e.target;
+      return (s===d.id || t===d.id) ? 0.95 : 0;
+    });
+  linkSel.filter(e => {
+    const s = e.source?.id ?? e.source, t = e.target?.id ?? e.target;
+    return s===d.id || t===d.id;
+  }).raise();
+}
+
+// ── 드래그 ───────────────────────────────────────────────────
+function drag(sim) {
+  return d3.drag()
+    .on("start", (e,d) => { if(!e.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+    .on("drag",  (e,d) => { d.fx=e.x; d.fy=e.y; })
+    .on("end",   (e,d) => { if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; });
+}
+
+// ── 가중치 슬라이더 표시 ──────────────────────────────────────
+["genre","energy","brightness","mood"].forEach(k => {
+  const slider = document.getElementById("w-"+k);
+  const val    = document.getElementById("wv-"+k);
+  slider.addEventListener("input", () => { val.textContent = (+slider.value).toFixed(2); });
+});
+
+// ── 가중치 재계산 (클라이언트사이드) ─────────────────────────
+document.getElementById("recalc-btn").addEventListener("click", () => {
+  const wg = +document.getElementById("w-genre").value;
+  const we = +document.getElementById("w-energy").value;
+  const wb = +document.getElementById("w-brightness").value;
+  const wm = +document.getElementById("w-mood").value;
+  const total = wg + we + wb + wm;
+  if (total === 0) return;
+  // 정규화
+  const [wgn, wen, wbn, wmn] = [wg/total, we/total, wb/total, wm/total];
+
+  // 노드 맵
+  const nodeMap = new Map(RAW_NODES.map(n => [n.id, n]));
+  const newEdges = [];
+  const minSim = +document.getElementById("sim-filter").value;
+
+  // 모든 쌍 재계산
+  const ids = RAW_NODES.map(n => n.id);
+  for (let i = 0; i < ids.length; i++) {
+    for (let j = i+1; j < ids.length; j++) {
+      const a = nodeMap.get(ids[i]), b = nodeMap.get(ids[j]);
+      const am = new Set(a.moods),  bm = new Set(b.moods);
+      const g_sim = genreSimFn(a.genres, b.genres);
+      const mu = new Set([...am, ...bm]);
+      const e_sim = 1 - Math.abs(a.energy - b.energy) / 4;
+      const br_sim= 1 - Math.abs(a.brightness - b.brightness) / 4;
+      const bothMoodEmpty = am.size === 0 && bm.size === 0;
+      const m_sim = bothMoodEmpty ? null : (mu.size===0 ? 0 : [...am].filter(x=>bm.has(x)).length / mu.size);
+      const sim   = bothMoodEmpty
+        ? (wgn*g_sim + wen*e_sim + wbn*br_sim) / (wgn + wen + wbn)
+        : wgn*g_sim + wen*e_sim + wbn*br_sim + wmn*m_sim;
+      if (sim >= minSim) {
+        newEdges.push({
+          source: a.id, target: b.id,
+          similarity:     Math.round(sim*1000)/1000,
+          genre_sim:      Math.round(g_sim*1000)/1000,
+          energy_sim:     Math.round(e_sim*1000)/1000,
+          brightness_sim: Math.round(br_sim*1000)/1000,
+          mood_sim:       Math.round(m_sim*1000)/1000,
+        });
+      }
+    }
+  }
+  currentEdges = newEdges;
+  applyFilters();
+});
+
+// ── 필터 ─────────────────────────────────────────────────────
+function applyFilters() {
+  const minSim    = +document.getElementById("sim-filter").value;
+  const checkedArtists = new Set([...document.querySelectorAll(".artist-cb:checked")].map(cb => cb.value));
+  document.getElementById("sim-val").textContent = minSim.toFixed(2);
+
+  const filteredNodes = RAW_NODES.filter(n =>
+    (checkedArtists.size === 0 || checkedArtists.has(n.artist))
+  );
+  const filteredIds   = new Set(filteredNodes.map(n => n.id));
+  const filteredEdges = currentEdges.filter(e =>
+    e.similarity >= minSim &&
+    filteredIds.has(e.source) && filteredIds.has(e.target)
+  );
+  const prevHighlighted = highlighted;
+  highlighted = null;
+  update(filteredNodes, filteredEdges);
+  if (prevHighlighted != null) {
+    const target = displayedNodes.find(n => n.id === prevHighlighted);
+    if (target) highlightNode(target, displayedNodes, displayedEdges);
+  }
+}
+
+document.getElementById("sim-filter").addEventListener("input", applyFilters);
+
+// ── 아티스트 체크박스 ─────────────────────────────────────────
+const artistAllCb = document.getElementById("artist-all");
+artistAllCb.addEventListener("change", () => {
+  document.querySelectorAll(".artist-cb").forEach(cb => { cb.checked = artistAllCb.checked; });
+  applyFilters();
+});
+document.querySelectorAll(".artist-cb").forEach(cb => {
+  cb.addEventListener("change", () => {
+    const all = document.querySelectorAll(".artist-cb");
+    const checked = document.querySelectorAll(".artist-cb:checked");
+    artistAllCb.indeterminate = checked.length > 0 && checked.length < all.length;
+    artistAllCb.checked = checked.length === all.length;
+    applyFilters();
+  });
+});
+
+// ── 검색 ─────────────────────────────────────────────────────
+const searchInput = document.getElementById("search-input");
+const searchClear = document.getElementById("search-clear");
+const suggestions = document.getElementById("search-suggestions");
+
+function clearHighlight() {
+  highlighted = null;
+  if (nodeSel) {
+    nodeSel.select("circle").attr("opacity", 1).style("stroke", null).style("stroke-width", null);
+    nodeSel.select("text").style("opacity", null);
+  }
+  if (linkSel) linkSel.attr("stroke-opacity", e => 0.2 + e.similarity * 0.5)
+                      .attr("stroke", e => simColor(e.similarity));
+}
+
+searchInput.addEventListener("input", () => {
+  const q = searchInput.value.toLowerCase().trim();
+  suggestions.innerHTML = "";
+  searchClear.style.display = q ? "block" : "none";
+  if (!q) {
+    suggestions.style.display = "none";
+    clearHighlight();
+    return;
+  }
+  const matches = RAW_NODES.filter(n => n.label.toLowerCase().includes(q)).slice(0, 10);
+  if (matches.length === 0) {
+    suggestions.style.display = "none";
+    return;
+  }
+  matches.forEach(n => {
+    const li = document.createElement("li");
+    li.innerHTML = n.label + `<span class="artist-tag">${n.artist}</span>`;
+    li.addEventListener("mousedown", () => {
+      searchInput.value = n.label;
+      suggestions.style.display = "none";
+      const target = displayedNodes.find(d => d.id === n.id);
+      if (target) {
+        highlightNode(target, displayedNodes, displayedEdges);
+        const scale = 1.8;
+        const tx = width / 2 - target.x * scale;
+        const ty = height / 2 - target.y * scale;
+        svg.transition().duration(600)
+          .call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+      } else {
+        // 현재 필터에 없는 곡이면 하이라이트 해제
+        clearHighlight();
+      }
+    });
+    suggestions.appendChild(li);
+  });
+  suggestions.style.display = "block";
+});
+
+searchInput.addEventListener("blur", () => {
+  setTimeout(() => { suggestions.style.display = "none"; }, 150);
+});
+
+searchClear.addEventListener("click", () => {
+  searchInput.value = "";
+  searchClear.style.display = "none";
+  suggestions.style.display = "none";
+  clearHighlight();
+  searchInput.focus();
+});
+
+// ── 화면 맞추기 ───────────────────────────────────────────────
+function fitView() {
+  let targetNodes = displayedNodes;
+  if (highlighted != null) {
+    const connectedIds = new Set([highlighted]);
+    displayedEdges.forEach(e => {
+      const s = e.source?.id ?? e.source, t = e.target?.id ?? e.target;
+      if (s === highlighted) connectedIds.add(t);
+      if (t === highlighted) connectedIds.add(s);
+    });
+    targetNodes = displayedNodes.filter(n => connectedIds.has(n.id));
+  }
+  const xs = targetNodes.map(n => n.x).filter(v => v != null);
+  const ys = targetNodes.map(n => n.y).filter(v => v != null);
+  if (!xs.length) return;
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  const y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const pad = 60;
+  const scale = Math.min((width - pad*2) / (x1 - x0 || 1), (height - pad*2) / (y1 - y0 || 1), 3);
+  const tx = width/2  - scale * (x0 + x1) / 2;
+  const ty = height/2 - scale * (y0 + y1) / 2;
+  svg.transition().duration(600)
+    .call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+}
+document.getElementById("fit-btn").addEventListener("click", fitView);
+
+// 초기 렌더
+applyFilters();
+</script>
+</body>
+</html>
