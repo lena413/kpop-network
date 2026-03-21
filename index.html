@@ -178,7 +178,7 @@ function simBarHTML(label, val) {
 }
 
 // ── 메인 렌더 ─────────────────────────────────────────────────
-function update(nodes, edges) {
+function update(nodes, edges, restart=true) {
   displayedNodes = nodes;
   displayedEdges = edges;
   const nodeMap    = new Map(nodes.map(n => [n.id, n]));
@@ -251,7 +251,7 @@ function update(nodes, edges) {
     nodeSel.attr("transform", d => `translate(${d.x},${d.y})`);
   });
   simulation.force("link").links(validEdges);
-  simulation.alpha(0.3).restart();
+  if (restart) simulation.alpha(0.3).restart();
 
   document.getElementById("s-nodes").textContent = nodes.length;
   document.getElementById("s-edges").textContent = validEdges.length;
@@ -325,7 +325,8 @@ function applyFilters() {
   );
   const prevHighlighted = highlighted;
   highlighted = null;
-  update(filteredNodes, filteredEdges);
+  const changed = filteredNodes.length !== displayedNodes.length || filteredEdges.length !== displayedEdges.length;
+  update(filteredNodes, filteredEdges, changed);
   if (prevHighlighted != null) {
     const target = displayedNodes.find(n => n.id === prevHighlighted);
     if (target) highlightNode(target, displayedNodes, displayedEdges);
