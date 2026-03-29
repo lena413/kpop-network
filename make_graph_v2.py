@@ -21,6 +21,7 @@ ARTIST_COLORS = {
     "aespa":                     "#00E5FF",
     "LE SSERAFIM (르세라핌)":    "#FF8C42",
     "NCT DREAM":                 "#4FC3F7",
+    "TWS (투어스)":              "#7ED4AD",
 }
 DEFAULT_COLOR = "#AAAAAA"
 
@@ -640,6 +641,9 @@ function startExplore(songId) {{
   document.querySelectorAll(".artist-cb").forEach(cb => {{ cb.checked = false; }});
   artistAllCb.checked = false;
   artistAllCb.indeterminate = false;
+  currentMode = "explore";
+  highlighted = null;
+  rankingPanel.style.display = "none";
   exploreNodes.clear();
   exploreSeed = songId;
   exploreNodes.add(songId);
@@ -675,20 +679,10 @@ function expandExplore(songId) {{
 }}
 
 function renderExplore(highlightId) {{
-  // 유사도 슬라이더 변경 시 seed 기준으로 노드 재계산
+  // 유사도 슬라이더 변경 시 seed 기준으로 새 노드 추가 (기존 노드는 유지)
   if (exploreSeed != null) {{
-    const freshIds = new Set([exploreSeed, ...getSimilarNodeIds(exploreSeed, 10)]);
+    const freshIds = getSimilarNodeIds(exploreSeed, 10);
     freshIds.forEach(id => exploreNodes.add(id));
-    for (const id of [...exploreNodes]) {{
-      if (id === exploreSeed) continue;
-      const minSim = +document.getElementById("sim-filter").value;
-      const hasConnection = RAW_EDGES_BASE.some(e =>
-        e.similarity >= minSim &&
-        exploreNodes.has(e.source) && exploreNodes.has(e.target) &&
-        (e.source === id || e.target === id)
-      );
-      if (!hasConnection) exploreNodes.delete(id);
-    }}
   }}
 
   if (exploreNodes.size === 0) {{
@@ -834,8 +828,14 @@ function syncArtistAll() {{
 }}
 
 artistAllCb.addEventListener("change", () => {{
-  // 전체 선택은 탐색 모드로 돌아가므로 허용
-  document.querySelectorAll(".artist-cb").forEach(cb => {{ cb.checked = artistAllCb.checked; }});
+  if (artistAllCb.checked) {{
+    // 전체 선택 차단
+    artistAllCb.checked = false;
+    showArtistWarn();
+    return;
+  }}
+  // 전체 해제는 허용
+  document.querySelectorAll(".artist-cb").forEach(cb => {{ cb.checked = false; }});
   applyFilters();
 }});
 document.querySelectorAll(".artist-cb").forEach(cb => {{
@@ -935,22 +935,7 @@ searchInput.addEventListener("input", () => {{
         searchInput.value = n.label;
         suggestions.style.display = "none";
 
-        if (currentMode === "explore") {{
-          startExplore(n.id);
-        }} else {{
-          // 전체뷰: 화면에 있는 노드면 하이라이트+줌, 없으면 탐색 모드 진입
-          const target = displayedNodes.find(d => d.id === n.id);
-          if (target) {{
-            highlightNode(target, displayedNodes, displayedEdges);
-            const scale = 1.8;
-            const tx = width / 2 - target.x * scale;
-            const ty = height / 2 - target.y * scale;
-            svg.transition().duration(600)
-              .call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
-          }} else {{
-            startExplore(n.id);
-          }}
-        }}
+        startExplore(n.id);
       }});
       suggestions.appendChild(li);
     }});
