@@ -199,7 +199,7 @@ if len(edges) > MAX_EDGES:
 print(f"nodes={len(nodes)}, edges={len(edges)} (threshold>={MIN_THRESHOLD}, cap={MAX_EDGES})")
 
 # ─── 아티스트 체크박스 & 범례 HTML 사전 생성 ─────────────────────
-active_artists = [a for a in ARTIST_COLORS if a in df["artist"].values]
+active_artists = sorted([a for a in ARTIST_COLORS if a in df["artist"].values], key=lambda x: (x[0].isascii(), x))
 artist_checkboxes = "\n".join(
     f'    <label class="check-item">'
     f'<input type="checkbox" class="artist-cb" value="{a}">'
