@@ -22,6 +22,8 @@ ARTIST_COLORS = {
     "LE SSERAFIM (르세라핌)":    "#FF8C42",
     "NCT DREAM":                 "#4FC3F7",
     "TWS (투어스)":              "#7ED4AD",
+    "아일릿(ILLIT)":             "#FF85A2",
+    "BABYMONSTER":               "#E74C3C",
 }
 DEFAULT_COLOR = "#AAAAAA"
 
@@ -81,7 +83,17 @@ GENRE_FAMILY = {
     "alternative pop":    "soft_pop",
     "acoustic pop":       "soft_pop",
     "pop":                "soft_pop",
-    # 패밀리 없음: jazz, country, orchestral, doo-wap, bossa nova
+    # Global Dance (라틴/아프로 계열) — 추가
+    "reggae pop":         "global_dance",
+    # Hip Hop / R&B — 추가
+    "boom bap":           "hip_hop_rb",
+    # Electronic Dance — 추가
+    "french house":       "electronic_dance",
+    # Synth / Electropop — 추가
+    "lo-fi":              "synth_pop",
+    # Rock — 추가
+    "punk pop":           "rock",
+    # 패밀리 없음: jazz, country, orchestral, bossa nova
 }
 FAMILY_WEIGHT = 1.5  # main(2)과 sub(1) 사이 — 같은 패밀리면 이 가중치로 교집합 기여
 
