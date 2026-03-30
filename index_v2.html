@@ -389,7 +389,7 @@ function highlightNode(d, nodes, edges) {
     return `<div class="rank-item" data-id="${item.id}">
       <span class="rank-num">${i + 1}</span>
       <span class="rank-title">${n.label}</span>
-      <span class="rank-artist">${n.artist.split(" (")[0]}</span>
+      <span class="rank-artist">${n.artist}</span>
       <span class="rank-sim">${Math.round(item.sim * 100)}%</span>
     </div>`;
   }).join("");
@@ -591,7 +591,7 @@ function applyFilters() {
   // 범례 업데이트: 현재 필터에 선택된 아티스트만 표시
   const visibleArtists = [...new Set(filteredNodes.map(n => n.artist))];
   document.getElementById("legend-list").innerHTML = visibleArtists
-    .map(a => `<div class="legend-item"><div class="legend-dot" style="background:${ARTIST_COLORS[a] || '#AAAAAA'}"></div>${a.split(" (")[0]}</div>`)
+    .map(a => `<div class="legend-item"><div class="legend-dot" style="background:${ARTIST_COLORS[a] || '#AAAAAA'}"></div>${a}</div>`)
     .join("");
   const filteredIds   = new Set(filteredNodes.map(n => n.id));
   const filteredEdges = RAW_EDGES_BASE.filter(e =>
