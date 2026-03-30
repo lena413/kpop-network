@@ -1008,7 +1008,7 @@ console.log("=== INIT DONE ===");
 </html>
 """
 
-out_path = "index_v2.html"
+out_path = "index.html"
 with open(out_path, "w", encoding="utf-8") as f:
     f.write(html)
 print("saved: " + out_path)
