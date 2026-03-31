@@ -98,12 +98,6 @@ GENRE_FAMILY = {
 }
 FAMILY_WEIGHT = 1.5  # main(2)과 sub(1) 사이 — 같은 패밀리면 이 가중치로 교집합 기여
 
-MOOD_EMOJI = {
-    "청량": "☀️", "리드미컬": "🎵", "몽환": "🌙", "세련": "✨",
-    "잔잔": "🌊", "벅참": "💫", "어두움": "🌑", "강렬": "🔥",
-    "발랄": "🎉",
-}
-
 # ─── 노드 생성 ────────────────────────────────────────────────
 nodes = []
 for _, row in df.iterrows():
@@ -111,7 +105,6 @@ for _, row in df.iterrows():
     moods  = [m for m in [row["mood_1"], row["mood_2"]] if m]
     energy     = int(row["energy"])     if str(row["energy"])     != "" else 3
     brightness = int(row["brightness"]) if str(row["brightness"]) != "" else 3
-    mood_label = " / ".join(MOOD_EMOJI.get(m, "") + " " + m for m in moods) if moods else ""
     album = str(row["album"]) if "album" in row and str(row["album"]) not in ("", "nan") else ""
     year  = str(int(float(row["year"]))) if "year" in row and str(row["year"]) not in ("", "nan") else ""
     album_line = ""
@@ -130,7 +123,7 @@ for _, row in df.iterrows():
         "energy":     energy,
         "brightness": brightness,
         "color":      ARTIST_COLORS.get(row["artist"], DEFAULT_COLOR),
-        "size":       10,
+        "size":       9,
         "tooltip": (
             f"<b>{row['title']}</b><br>"
             f"🎤 {row['artist']}<br>"
@@ -343,7 +336,7 @@ html = f"""<!DOCTYPE html>
 
   .node circle {{ cursor:pointer; stroke:rgba(255,255,255,0.1); stroke-width:1px; transition:r 0.2s; }}
   .node circle:hover {{ stroke:white; stroke-width:2px; }}
-  .node text {{ pointer-events:none; fill:#ccc; font-size:10px; }}
+  .node text {{ pointer-events:none; fill:#ccc; font-size:9px; }}
 
   /* 탐색 모드: 불필요한 패널 숨김 */
   body.explore-empty #legend,
