@@ -12,7 +12,7 @@ ARTIST_COLORS = {
     "투모로우바이투게더":          "#6B9DFF",
     "연준":                      "#9DFF6B",
     "KATSEYE":                   "#FFD700",
-    "IVE":                       "#FF9966",
+    "IVE (아이브)":               "#FF9966",
     "범규":                      "#BB8FCE",
     "Hearts2Hearts (하츠투하츠)": "#48C9B0",
     "KiiKii (키키)":             "#F8C471",
@@ -40,6 +40,7 @@ GENRE_FAMILY = {
     "rave":               "electronic_dance",
     "hardstyle":          "electronic_dance",
     "electronic dance":   "electronic_dance",
+    "deep house":         "electronic_dance",
     # Synth / Electropop
     "synthpop":           "synth_pop",
     "new wave":           "synth_pop",

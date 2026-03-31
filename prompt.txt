@@ -13,7 +13,7 @@
 
 [기본 장르 리스트]
 # Electronic Dance
-dance pop, house, uk garage, jersey club, drum & bass, breakbeat, edm, rave, electronic dance, french house
+dance pop, house, deep house, uk garage, jersey club, drum & bass, breakbeat, edm, rave, electronic dance, french house
 
 # Synth / Electropop
 synthpop, new wave, hyperpop, city pop, dream pop, lo-fi
