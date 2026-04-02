@@ -55,7 +55,7 @@
     border-bottom:1px solid #1e1e36;
   }
   #search-suggestions li:last-child { border-bottom:none; }
-  #search-suggestions li:hover { background:#1e1e42; color:#fff; }
+  #search-suggestions:not(.kb-nav) li:hover, #search-suggestions li.sg-active { background:#1e1e42; color:#fff; }
   #search-suggestions li span.artist-tag {
     font-size:10px; color:#666; margin-left:5px;
   }
@@ -682,7 +682,43 @@ const ALL_ARTISTS = [...document.querySelectorAll(".artist-cb")].map(cb => ({
   color: ARTIST_COLORS[cb.value] || '#AAAAAA'
 }));
 
+let sgIndex = -1;  // 현재 선택된 항목 인덱스
+
+function getSelectableItems() {
+  return [...suggestions.querySelectorAll("li:not(.sg-divider)")];
+}
+
+function updateSgActive() {
+  const items = getSelectableItems();
+  items.forEach((li, i) => li.classList.toggle("sg-active", i === sgIndex));
+  if (sgIndex >= 0 && items[sgIndex]) items[sgIndex].scrollIntoView({ block: "nearest" });
+}
+
+searchInput.addEventListener("keydown", (e) => {
+  if (suggestions.style.display === "none") return;
+  const items = getSelectableItems();
+  if (!items.length) return;
+
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    suggestions.classList.add("kb-nav");
+    sgIndex = (sgIndex + 1) % items.length;
+    updateSgActive();
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    suggestions.classList.add("kb-nav");
+    sgIndex = (sgIndex - 1 + items.length) % items.length;
+    updateSgActive();
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    if (sgIndex >= 0 && items[sgIndex]) {
+      items[sgIndex].dispatchEvent(new Event("mousedown"));
+    }
+  }
+});
+
 searchInput.addEventListener("input", () => {
+  sgIndex = -1;
   const q = searchInput.value.toLowerCase().trim();
   suggestions.innerHTML = "";
   searchClear.style.display = q ? "block" : "none";
@@ -751,6 +787,11 @@ searchInput.addEventListener("input", () => {
     });
   }
   suggestions.style.display = "block";
+  suggestions.addEventListener("mousemove", () => {
+    suggestions.classList.remove("kb-nav");
+    sgIndex = -1;
+    getSelectableItems().forEach(li => li.classList.remove("sg-active"));
+  }, { once: true });
 });
 
 searchInput.addEventListener("blur", () => {
