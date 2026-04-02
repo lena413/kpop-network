@@ -28,10 +28,10 @@ disco, funk pop, new jack swing, miami bass
 dancehall, moombahton, reggaeton, brazilian funk, balie funk, afrobeats, latin pop, reggae pop
 
 # Hip Hop / R&B
-hip hop, trap, old-school hip hop, boom bap, r&b, alternative r&b, soul
+hip hop, trap, old-school hip hop, boom bap, rage, r&b, alternative r&b, soul
 
 # Rock
-pop rock, hard rock, indie rock, alternative rock, emo rock, britpop, pop punk, punk pop, punk rock, stadium rock, reggae rock
+pop rock, hard rock, indie rock, alternative rock, emo rock, britpop, pop punk, punk pop, punk rock, stadium rock, reggae rock, rock and roll
 
 # Soft Pop / Ballad
 ballad, indie pop, pop
