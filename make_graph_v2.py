@@ -10,10 +10,10 @@ df = df.fillna("")
 ARTIST_COLORS = {
     "NewJeans":                  "#FF6B9D",
     "투모로우바이투게더":          "#6B9DFF",
-    "연준":                      "#9DFF6B",
+    "연준":                      "#A8D0FF",
     "KATSEYE":                   "#FFD700",
     "IVE (아이브)":               "#FF9966",
-    "범규":                      "#BB8FCE",
+    "범규":                      "#3560C0",
     "Hearts2Hearts (하츠투하츠)": "#48C9B0",
     "KiiKii (키키)":             "#F8C471",
     "NMIXX":                     "#DA70D6",
