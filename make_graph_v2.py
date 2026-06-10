@@ -28,6 +28,7 @@ ARTIST_COLORS = {
     "RIIZE": "#5B9BD5",
     "CORTIS (코르티스)": "#B39DDB",   # 새로 추가
     "Billlie (빌리)": "#F06292",      # 새로 추가
+    "SHINee (샤이니)": "#3EE6C4",      # 새로 추가 (민트)
 }
 
 DEFAULT_COLOR = "#AAAAAA"
@@ -115,6 +116,35 @@ GENRE_FAMILY = {
     # Hip Hop / R&B — 추가
     "rage": "hip_hop_rb",
     "rock and roll": "rock",
+
+    # ── 신규 곡 반영 추가분 ──
+    # Electronic Dance
+    "dubstep": "electronic_dance",
+    "techno": "electronic_dance",
+    "melodic techno": "electronic_dance",
+    "trance": "electronic_dance",
+    "latin house": "electronic_dance",
+
+    # Synth / Electropop
+    "electropop": "synth_pop",
+    "future bass": "synth_pop",
+
+    # Global Dance (baile funk = balie funk 정상 철자)
+    "baile funk": "global_dance",
+
+    # Rock
+    "psychedelic rock": "rock",
+
+    # Jazz / Soul (재즈·보사노바·두왑 — 어쿠스틱 화성 + 스윙 계열)
+    "jazz": "jazz_soul",
+    "bossa nova": "jazz_soul",
+    "doo-wap": "jazz_soul",
+
+    # Acoustic Roots (컨트리 등 루츠 계열)
+    "country": "acoustic_roots",
+
+    # Orchestral (단독 패밀리)
+    "orchestral": "orchestral",
 }
 
 FAMILY_WEIGHT = 1.5  # main(2)과 sub(1) 사이 — 같은 패밀리면 이 가중치로 교집합 기여
