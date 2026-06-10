@@ -226,7 +226,6 @@ active_artists = sorted(
 artist_checkboxes = "\n".join(
     f'  <label class="check-item">'
     f'<input type="checkbox" class="artist-cb" value="{a}">'
-    f'<span class="check-dot" style="background:{ARTIST_COLORS[a]}"></span>'
     f'{a}</label>'
     for a in active_artists
 )
@@ -259,7 +258,7 @@ body {{ background:#0d0d1a; color:#eee; font-family:'Segoe UI',sans-serif; overf
 .legend-dot {{ width:11px; height:11px; border-radius:50%; flex-shrink:0; }}
 .legend-note {{ margin-top:10px; color:#666; font-size:11px; line-height:1.7; }}
 #filters {{
-  position:fixed; width:260px; z-index:10;
+  position:fixed; width:280px; z-index:10;
   transition: top 0.4s ease, left 0.4s ease, right 0.4s ease, transform 0.4s ease, width 0.4s ease;
   top:16px; right:16px; left:auto; transform:none;
 }}
@@ -301,9 +300,6 @@ body.explore-empty #filters {{
 }}
 #search-suggestions li.sg-artist input {{
   accent-color:#6B9DFF; cursor:pointer; flex-shrink:0; pointer-events:none;
-}}
-#search-suggestions li.sg-artist .check-dot {{
-  width:8px; height:8px; border-radius:50%; flex-shrink:0;
 }}
 #search-suggestions .sg-divider {{
   padding:3px 8px; color:#555; font-size:10px; border-bottom:1px solid #1e1e36;
@@ -354,10 +350,8 @@ body.explore-empty #filters {{
 #reset-btn {{ display:none; border-color:#FF6B9D; color:#FF6B9D; }}
 #reset-btn:hover {{ border-color:#FF6B9D; color:#fff; background:rgba(255,107,157,0.15); }}
 #artist-checks {{ max-height:148px; overflow-y:auto; margin-top:4px; }}
-.check-item {{ display:flex; align-items:center; gap:6px; padding:2px 0; font-size:12px; color:#ccc; cursor:pointer; }}
+.fg .check-item {{ display:flex; align-items:center; gap:6px; padding:5px 8px; font-size:12px; color:#ccc; cursor:pointer; }}
 .check-item input {{ accent-color:#6B9DFF; cursor:pointer; flex-shrink:0; }}
-.check-dot {{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }}
-.check-all {{ border-bottom:1px solid #2a2a4a; padding-bottom:5px; margin-bottom:2px; color:#999; }}
 .node circle {{ cursor:pointer; stroke:rgba(255,255,255,0.1); stroke-width:1px; transition:r 0.2s; }}
 .node circle:hover {{ stroke:white; stroke-width:2px; }}
 .node text {{ pointer-events:none; fill:#ccc; font-size:9px; }}
@@ -400,7 +394,7 @@ body.explore-empty #filters {{ border-color:#3a3a5a; }}
 <!-- 필터 -->
 <div class="panel" id="filters">
   <div id="explore-guide">
-    <div class="guide-text">🔍 곡을 검색하거나<br>아티스트를 5개 이하로 선택하세요</div>
+    <div class="guide-text">🔍 곡을 검색하거나<br>아티스트를 선택하세요</div>
     <div class="guide-sub">곡을 선택하면 유사곡 네트워크가 펼쳐집니다</div>
   </div>
   <h3>필터</h3>
@@ -418,7 +412,6 @@ body.explore-empty #filters {{ border-color:#3a3a5a; }}
   </div>
   <div class="fg" id="fg-artist">
     <label>아티스트</label>
-    <label class="check-item check-all"><input type="checkbox" id="artist-all"> 전체 선택/해제</label>
     <div id="artist-checks">
 {artist_checkboxes}
     </div>
@@ -545,14 +538,10 @@ const exploreGuide = document.getElementById("explore-guide");
 const exploreWarn  = document.getElementById("explore-warn");
 const resetBtn     = document.getElementById("reset-btn");
 
-const MAX_ARTIST_CHECK = 5;
-
 function getMode() {{
   const checked = document.querySelectorAll(".artist-cb:checked").length;
-  const total   = document.querySelectorAll(".artist-cb").length;
-  if (checked === total) return "full";
-  if (checked >= 1 && checked <= MAX_ARTIST_CHECK) return "full";
-  return "explore";
+  // 아티스트가 1개 선택되면 해당 아티스트 보기(full), 아니면 탐색(explore)
+  return checked >= 1 ? "full" : "explore";
 }}
 
 function showExploreGuide(show) {{
@@ -723,8 +712,6 @@ function getSimilarNodeIds(songId, limit) {{
 
 function startExplore(songId) {{
   document.querySelectorAll(".artist-cb").forEach(cb => {{ cb.checked = false; }});
-  artistAllCb.checked = false;
-  artistAllCb.indeterminate = false;
   currentMode = "explore";
   highlighted = null;
   rankingPanel.style.display = "none";
@@ -793,6 +780,9 @@ function resetExplore() {{
   rankingPanel.style.display = "none";
   searchInput.value = "";
   searchClear.style.display = "none";
+  // 아티스트 선택도 모두 해제하고 탐색 초기 상태로
+  document.querySelectorAll(".artist-cb").forEach(cb => {{ cb.checked = false; }});
+  currentMode = "explore";
   renderExplore();
 }}
 resetBtn.addEventListener("click", resetExplore);
@@ -849,7 +839,7 @@ function applyFilters() {{
   }}
 
   showExploreGuide(false);
-  resetBtn.style.display = "none";
+  resetBtn.style.display = "inline-block";
   const checkedArtists = new Set([...document.querySelectorAll(".artist-cb:checked")].map(cb => cb.value));
   const filteredNodes = RAW_NODES.filter(n =>
     (checkedArtists.size === 0 || checkedArtists.has(n.artist))
@@ -879,40 +869,14 @@ function applyFilters() {{
 
 document.getElementById("sim-filter").addEventListener("input", applyFilters);
 
-const artistAllCb = document.getElementById("artist-all");
-
-function showArtistWarn() {{
-  exploreWarn.textContent = `⚠ 아티스트는 최대 ${{MAX_ARTIST_CHECK}}개까지 선택할 수 있습니다`;
-  exploreWarn.style.display = "block";
-  setTimeout(() => {{ exploreWarn.style.display = "none"; }}, 2000);
-}}
-
-function syncArtistAll() {{
-  const all     = document.querySelectorAll(".artist-cb");
-  const checked = document.querySelectorAll(".artist-cb:checked");
-  artistAllCb.indeterminate = checked.length > 0 && checked.length < all.length;
-  artistAllCb.checked = checked.length === all.length;
-}}
-
-artistAllCb.addEventListener("change", () => {{
-  if (artistAllCb.checked) {{
-    artistAllCb.checked = false;
-    showArtistWarn();
-    return;
-  }}
-  document.querySelectorAll(".artist-cb").forEach(cb => {{ cb.checked = false; }});
-  applyFilters();
-}});
-
 document.querySelectorAll(".artist-cb").forEach(cb => {{
   cb.addEventListener("change", () => {{
-    const checkedCount = document.querySelectorAll(".artist-cb:checked").length;
-    if (checkedCount > MAX_ARTIST_CHECK) {{
-      cb.checked = false;
-      showArtistWarn();
-      return;
+    if (cb.checked) {{
+      // 라디오처럼 동작: 다른 아티스트 선택은 모두 해제
+      document.querySelectorAll(".artist-cb").forEach(other => {{
+        if (other !== cb) other.checked = false;
+      }});
     }}
-    syncArtistAll();
     applyFilters();
   }});
 }});
@@ -932,8 +896,7 @@ function clearHighlight() {{
 }}
 
 const ALL_ARTISTS = [...document.querySelectorAll(".artist-cb")].map(cb => ({{
-  name: cb.value, cb,
-  color: ARTIST_COLORS[cb.value] || '#AAAAAA'
+  name: cb.value, cb
 }}));
 
 let sgIndex = -1;
@@ -972,7 +935,9 @@ searchInput.addEventListener("keydown", (e) => {{
 
 searchInput.addEventListener("input", () => {{
   sgIndex = -1;
-  const q = searchInput.value.toLowerCase().trim();
+  // 곡선 따옴표(’ ‘ ` ´)와 직선 따옴표(')를 같은 것으로 취급해 검색 누락 방지
+  const normalize = s => s.toLowerCase().replace(/[\u2018\u2019\u0060\u00b4]/g, "'");
+  const q = normalize(searchInput.value).trim();
   suggestions.innerHTML = "";
   searchClear.style.display = q ? "block" : "none";
   if (!q) {{
@@ -980,8 +945,8 @@ searchInput.addEventListener("input", () => {{
     if (currentMode === "full") clearHighlight();
     return;
   }}
-  const artistMatches = ALL_ARTISTS.filter(a => a.name.toLowerCase().includes(q)).slice(0, 5);
-  const songMatches   = RAW_NODES.filter(n => n.label.toLowerCase().includes(q)).slice(0, 10);
+  const artistMatches = ALL_ARTISTS.filter(a => normalize(a.name).includes(q)).slice(0, 5);
+  const songMatches   = RAW_NODES.filter(n => normalize(n.label).includes(q)).slice(0, 10);
   if (artistMatches.length === 0 && songMatches.length === 0) {{
     suggestions.style.display = "none";
     return;
@@ -995,20 +960,18 @@ searchInput.addEventListener("input", () => {{
       const li = document.createElement("li");
       li.className = "sg-artist";
       const checked = a.cb.checked ? "checked" : "";
-      li.innerHTML = `<input type="checkbox" ${{checked}}><span class="check-dot" style="background:${{a.color}}"></span>${{a.name}}`;
+      li.innerHTML = `<input type="checkbox" ${{checked}}>${{a.name}}`;
       li.addEventListener("mousedown", (e) => {{
         e.preventDefault();
         const willCheck = !a.cb.checked;
         if (willCheck) {{
-          const checkedCount = document.querySelectorAll(".artist-cb:checked").length;
-          if (checkedCount >= MAX_ARTIST_CHECK) {{
-            showArtistWarn();
-            return;
-          }}
+          // 라디오처럼 동작: 다른 아티스트 선택은 모두 해제
+          document.querySelectorAll(".artist-cb").forEach(other => {{
+            if (other !== a.cb) other.checked = false;
+          }});
         }}
         a.cb.checked = willCheck;
         li.querySelector("input").checked = a.cb.checked;
-        syncArtistAll();
         applyFilters();
       }});
       suggestions.appendChild(li);
