@@ -1,6 +1,5 @@
 import pandas as pd
 import json
-from itertools import combinations
 
 # ─── 데이터 로드 ──────────────────────────────────────────────
 
@@ -212,38 +211,10 @@ def genre_sim(a, b):
 def num_sim(a, b, scale=4):
     return 1.0 - abs(a - b) / scale
 
-edges = []
-for na, nb in combinations(nodes, 2):
-    g_sim = genre_sim(na["genres"], nb["genres"])
-    e_sim = num_sim(na["energy"],     nb["energy"])
-    b_sim = num_sim(na["brightness"], nb["brightness"])
-
-    both_mood_empty = not na["moods"] and not nb["moods"]
-    if both_mood_empty:
-        total = (W["genre"]*g_sim + W["energy"]*e_sim + W["brightness"]*b_sim) / (1 - W["mood"])
-        m_sim = 0.0
-    else:
-        sa, sb = set(na["moods"]), set(nb["moods"])
-        m_sim  = len(sa & sb) / len(sa | sb) if (sa or sb) else 0.0
-        total  = W["genre"]*g_sim + W["energy"]*e_sim + W["brightness"]*b_sim + W["mood"]*m_sim
-
-    if total >= MIN_THRESHOLD:
-        edges.append({
-            "source":       na["id"],
-            "target":       nb["id"],
-            "similarity":   round(total, 3),
-            "genre_sim":    round(g_sim, 3),
-            "energy_sim":   round(e_sim, 3),
-            "brightness_sim": round(b_sim, 3),
-            "mood_sim":     round(m_sim, 3),
-        })
-
-edges.sort(key=lambda e: e["similarity"], reverse=True)
-MAX_EDGES = 5000
-if len(edges) > MAX_EDGES:
-    edges = edges[:MAX_EDGES]
-
-print(f"nodes={len(nodes)}, edges={len(edges)} (threshold>={MIN_THRESHOLD}, cap={MAX_EDGES})")
+# 엣지는 더 이상 빌드 타임에 계산하지 않는다.
+# 브라우저에서 탐색 시점에 실시간으로 계산한다 (아래 JS의 computeSimilarity 참고).
+# 파이썬 함수는 JS 포팅의 기준(reference)으로만 남겨둔다.
+print(f"nodes={len(nodes)} (엣지는 브라우저에서 실시간 계산, threshold>={MIN_THRESHOLD})")
 
 # ─── 아티스트 체크박스 & 범례 HTML 사전 생성 ─────────────────────
 
@@ -456,12 +427,92 @@ body.explore-empty #filters {{ border-color:#3a3a5a; }}
 
 <div id="tooltip"></div>
 <div id="ranking"><h3 id="ranking-title"></h3><div id="ranking-list"></div></div>
-<div id="stats">노드: <b id="s-nodes">{len(nodes)}</b> 엣지: <b id="s-edges">{len(edges)}</b><button id="fit-btn">⊙ 화면 맞추기</button><button id="reset-btn">↺ 탐색 초기화</button></div>
+<div id="stats">노드: <b id="s-nodes">{len(nodes)}</b> 엣지: <b id="s-edges">0</b><button id="fit-btn">⊙ 화면 맞추기</button><button id="reset-btn">↺ 탐색 초기화</button></div>
 
 <script>
 const RAW_NODES = {json.dumps(nodes, ensure_ascii=False)};
-const RAW_EDGES_BASE = {json.dumps(edges, ensure_ascii=False)};
 const ARTIST_COLORS = {json.dumps(ARTIST_COLORS, ensure_ascii=False)};
+
+// ─── 실시간 유사도 계산 (파이썬 로직을 JS로 포팅) ───────────────
+const GENRE_FAMILY = {json.dumps(GENRE_FAMILY, ensure_ascii=False)};
+const FAMILY_WEIGHT = {FAMILY_WEIGHT};
+const W = {json.dumps(W, ensure_ascii=False)};
+const MIN_THRESHOLD = {MIN_THRESHOLD};
+
+function buildGenreWeights(genres) {{
+  const w = {{}};
+  genres.forEach((gname, i) => {{
+    w[gname] = (i === 0) ? 2 : 1;
+    const fam = GENRE_FAMILY[gname];
+    if (fam) w[fam] = Math.max(w[fam] || 0, FAMILY_WEIGHT);
+  }});
+  return w;
+}}
+
+function genreSim(a, b) {{
+  if (!a.length || !b.length) return 0.0;
+  const wa = buildGenreWeights(a), wb = buildGenreWeights(b);
+  const allG = new Set([...Object.keys(wa), ...Object.keys(wb)]);
+  let inter = 0, union = 0;
+  allG.forEach(gname => {{
+    const va = wa[gname] || 0, vb = wb[gname] || 0;
+    inter += Math.min(va, vb);
+    union += Math.max(va, vb);
+  }});
+  return union ? inter / union : 0.0;
+}}
+
+function numSim(a, b, scale=4) {{ return 1.0 - Math.abs(a - b) / scale; }}
+
+// 두 노드 간 종합 유사도 (파이썬과 동일 로직). 임계값 미만이면 null.
+function pairSimilarity(na, nb) {{
+  const gSim = genreSim(na.genres, nb.genres);
+  const eSim = numSim(na.energy, nb.energy);
+  const bSim = numSim(na.brightness, nb.brightness);
+  const bothMoodEmpty = na.moods.length === 0 && nb.moods.length === 0;
+  let total, mSim;
+  if (bothMoodEmpty) {{
+    total = (W.genre*gSim + W.energy*eSim + W.brightness*bSim) / (1 - W.mood);
+    mSim = 0.0;
+  }} else {{
+    const sa = new Set(na.moods), sb = new Set(nb.moods);
+    const interM = [...sa].filter(m => sb.has(m)).length;
+    const unionM = new Set([...sa, ...sb]).size;
+    mSim = unionM ? interM / unionM : 0.0;
+    total = W.genre*gSim + W.energy*eSim + W.brightness*bSim + W.mood*mSim;
+  }}
+  return total;
+}}
+
+const NODE_BY_ID = new Map(RAW_NODES.map(n => [n.id, n]));
+
+// 한 곡과 다른 모든 곡의 유사도를 실시간 계산해, 임계값 이상을 내림차순 반환
+function similaritiesFrom(songId) {{
+  const src = NODE_BY_ID.get(songId);
+  if (!src) return [];
+  const out = [];
+  for (const other of RAW_NODES) {{
+    if (other.id === songId) continue;
+    const sim = pairSimilarity(src, other);
+    if (sim >= MIN_THRESHOLD) out.push({{ id: other.id, similarity: sim }});
+  }}
+  out.sort((a, b) => b.similarity - a.similarity);
+  return out;
+}}
+
+// 주어진 노드 집합 내부의 모든 엣지를 실시간 계산 (보이는 노드끼리만)
+function edgesAmong(nodeList, minSim) {{
+  const edges = [];
+  for (let i = 0; i < nodeList.length; i++) {{
+    for (let j = i + 1; j < nodeList.length; j++) {{
+      const sim = pairSimilarity(nodeList[i], nodeList[j]);
+      if (sim >= minSim) {{
+        edges.push({{ source: nodeList[i].id, target: nodeList[j].id, similarity: sim }});
+      }}
+    }}
+  }}
+  return edges;
+}}
 
 const simColor = d3.scaleSequential()
   .domain([0.35, 0.9])
@@ -664,11 +715,10 @@ function highlightNode(d, nodes, edges) {{
 
 function getSimilarNodeIds(songId, limit) {{
   const minSim = +document.getElementById("sim-filter").value;
-  return RAW_EDGES_BASE
-    .filter(e => (e.source === songId || e.target === songId) && e.similarity >= minSim)
-    .sort((a, b) => b.similarity - a.similarity)
+  return similaritiesFrom(songId)
+    .filter(e => e.similarity >= minSim)
     .slice(0, limit || 10)
-    .map(e => e.source === songId ? e.target : e.source);
+    .map(e => e.id);
 }}
 
 function startExplore(songId) {{
@@ -721,11 +771,7 @@ function renderExplore(highlightId) {{
   resetBtn.style.display = "inline-block";
   const minSim = +document.getElementById("sim-filter").value;
   const nodes = RAW_NODES.filter(n => exploreNodes.has(n.id));
-  const visibleIds = new Set(nodes.map(n => n.id));
-  const edges = RAW_EDGES_BASE.filter(e =>
-    e.similarity >= minSim &&
-    visibleIds.has(e.source) && visibleIds.has(e.target)
-  );
+  const edges = edgesAmong(nodes, minSim);
   const visibleArtists = [...new Set(nodes.map(n => n.artist))];
   document.getElementById("legend-list").innerHTML = visibleArtists
     .map(a => `<div class="legend-item"><div class="legend-dot" style="background:${{ARTIST_COLORS[a] || '#AAAAAA'}}"></div>${{a}}</div>`)
@@ -813,10 +859,7 @@ function applyFilters() {{
     .map(a => `<div class="legend-item"><div class="legend-dot" style="background:${{ARTIST_COLORS[a] || '#AAAAAA'}}"></div>${{a}}</div>`)
     .join("");
   const filteredIds = new Set(filteredNodes.map(n => n.id));
-  const filteredEdges = RAW_EDGES_BASE.filter(e =>
-    e.similarity >= minSim &&
-    filteredIds.has(e.source) && filteredIds.has(e.target)
-  );
+  const filteredEdges = edgesAmong(filteredNodes, minSim);
   const prevHighlighted = highlighted;
   highlighted = null;
   update(filteredNodes, filteredEdges);
