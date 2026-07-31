@@ -40,7 +40,7 @@ ballad, indie pop, alternative pop, pop, waltz
 jazz, country, orchestral, bossa nova, doo-wop
 
 [무드 리스트]
-청량, 몽환, 세련, 벅참, 강렬, 발랄, 키치, 아련, 미니멀, 게임, 섹시, 레트로, 서늘, 웅장, 힙함, 긴장, 따뜻, 여름, 포근
+청량, 몽환, 세련, 벅참, 강렬, 발랄, 키치, 아련, 미니멀, 게임, 섹시, 레트로, 서늘, 웅장, 힙함, 긴장, 여름, 포근
 
 [출력 형식]
 main_genre: (하나)
