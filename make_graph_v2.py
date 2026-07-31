@@ -28,6 +28,7 @@ ARTIST_COLORS = {
     "CORTIS (코르티스)": "#B39DDB",   # 새로 추가
     "Billlie (빌리)": "#F06292",      # 새로 추가
     "SHINee (샤이니)": "#3EE6C4",      # 새로 추가 (민트)
+    "RESCENE (리센느)": "#7C4DFF",     # 새로 추가 (인디고 바이올렛)
 }
 
 DEFAULT_COLOR = "#AAAAAA"
@@ -144,6 +145,11 @@ GENRE_FAMILY = {
 
     # Orchestral (단독 패밀리)
     "orchestral": "orchestral",
+
+    # ── 신규 곡 반영 추가분 (2차) ──
+    "alternative hip hop": "hip_hop_rb",
+    "funk rock": "rock",
+    "rap rock": "rock",
 }
 
 FAMILY_WEIGHT = 1.5  # main(2)과 sub(1) 사이 — 같은 패밀리면 이 가중치로 교집합 기여
