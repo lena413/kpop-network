@@ -1037,7 +1037,7 @@ update([], []);
 </body>
 </html>"""
 
-with open("kpop_network.html", "w", encoding="utf-8") as f:
+with open("index.html", "w", encoding="utf-8") as f:
     f.write(html)
 
-print("✅ kpop_network.html 생성 완료!")
+print("✅ index.html 생성 완료!")
