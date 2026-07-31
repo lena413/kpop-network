@@ -148,7 +148,6 @@ GENRE_FAMILY = {
     "rap rock": "rock",
 
     # ── 신규 곡 반영 추가분 (3차) ──
-    "contemporary r&b": "hip_hop_rb",   # R&B 계열
     "electro funk": "synth_pop",        # 신스 기반 (Knock On Wood, sub도 synthpop)
     "ragga": "global_dance",            # 레게/댄스홀 계열
     "waltz": "soft_pop",                # 팝 발라드 리듬 요소 (Remember Forever)

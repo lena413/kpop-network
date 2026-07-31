@@ -28,7 +28,7 @@ disco, funk pop, new jack swing, miami bass, electro funk
 dancehall, moombahton, reggaeton, brazilian funk, baile funk, afrobeats, latin pop, reggae pop, latin house, ragga, samba
 
 # Hip Hop / R&B
-hip hop, trap, old-school hip hop, boom bap, rage, r&b, alternative r&b, contemporary r&b, alternative hip hop, soul
+hip hop, trap, old-school hip hop, boom bap, rage, r&b, alternative r&b, alternative hip hop, soul
 
 # Rock
 pop rock, hard rock, indie rock, alternative rock, emo rock, britpop, pop punk, punk rock, stadium rock, reggae rock, rock and roll, psychedelic rock, funk rock, rap rock
