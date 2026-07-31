@@ -3,7 +3,7 @@ import json
 
 # ─── 데이터 로드 ──────────────────────────────────────────────
 
-df = pd.read_csv("songs_tagged_v2.csv", encoding="utf-8-sig")
+df = pd.read_csv("songs_tagged.csv", encoding="utf-8-sig")
 df = df.fillna("")
 
 # ─── 아티스트별 색상 ──────────────────────────────────────────
