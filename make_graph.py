@@ -68,7 +68,7 @@ GENRE_FAMILY = {
     "moombahton": "global_dance",
     "reggaeton": "global_dance",
     "brazilian funk": "global_dance",
-    "balie funk": "global_dance",
+    "baile funk": "global_dance",
     "afrobeats": "global_dance",
     "latin pop": "global_dance",
 
@@ -130,8 +130,6 @@ GENRE_FAMILY = {
     "electropop": "synth_pop",
     "future bass": "synth_pop",
 
-    # Global Dance (baile funk = balie funk 정상 철자)
-    "baile funk": "global_dance",
 
     # Rock
     "psychedelic rock": "rock",
