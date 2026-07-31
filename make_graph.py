@@ -111,9 +111,6 @@ GENRE_FAMILY = {
     # Synth / Electropop — 추가
     "lo-fi": "synth_pop",
 
-    # Rock — 추가
-    "punk pop": "rock",
-
     # Hip Hop / R&B — 추가
     "rage": "hip_hop_rb",
     "rock and roll": "rock",
