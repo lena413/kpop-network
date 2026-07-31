@@ -134,7 +134,7 @@ GENRE_FAMILY = {
     # Jazz / Soul (재즈·보사노바·두왑 — 어쿠스틱 화성 + 스윙 계열)
     "jazz": "jazz_soul",
     "bossa nova": "jazz_soul",
-    "doo-wap": "jazz_soul",
+    "doo-wop": "jazz_soul",
 
     # Acoustic Roots (컨트리 등 루츠 계열)
     "country": "acoustic_roots",
@@ -149,7 +149,6 @@ GENRE_FAMILY = {
 
     # ── 신규 곡 반영 추가분 (3차) ──
     "contemporary r&b": "hip_hop_rb",   # R&B 계열
-    "doo-wop": "jazz_soul",             # 기존 doo-wap과 동일 계열 (정식 철자)
     "electro funk": "synth_pop",        # 신스 기반 (Knock On Wood, sub도 synthpop)
     "ragga": "global_dance",            # 레게/댄스홀 계열
     "waltz": "soft_pop",                # 팝 발라드 리듬 요소 (Remember Forever)
@@ -1035,4 +1034,4 @@ update([], []);
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(html)
 
-print("✅ index.html 생성 완료!")
+print("index.html 생성 완료!")
