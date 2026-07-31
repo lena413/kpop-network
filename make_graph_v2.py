@@ -158,6 +158,9 @@ GENRE_FAMILY = {
     "electro funk": "synth_pop",        # 신스 기반 (Knock On Wood, sub도 synthpop)
     "ragga": "global_dance",            # 레게/댄스홀 계열
     "waltz": "soft_pop",                # 팝 발라드 리듬 요소 (Remember Forever)
+
+    # ── 신규 곡 반영 추가분 (4차) ──
+    "samba": "global_dance",            # 브라질 계열 (brazilian funk 등과 동일)
 }
 
 FAMILY_WEIGHT = 1.5  # main(2)과 sub(1) 사이 — 같은 패밀리면 이 가중치로 교집합 기여
