@@ -29,6 +29,7 @@ ARTIST_COLORS = {
     "Billlie (빌리)": "#F06292",      # 새로 추가
     "SHINee (샤이니)": "#3EE6C4",      # 새로 추가 (민트)
     "RESCENE (리센느)": "#7C4DFF",     # 새로 추가 (인디고 바이올렛)
+    "Red Velvet (레드벨벳)": "#B71C4A", # 새로 추가 (딥 크림슨)
 }
 
 DEFAULT_COLOR = "#AAAAAA"
@@ -150,6 +151,13 @@ GENRE_FAMILY = {
     "alternative hip hop": "hip_hop_rb",
     "funk rock": "rock",
     "rap rock": "rock",
+
+    # ── 신규 곡 반영 추가분 (3차) ──
+    "contemporary r&b": "hip_hop_rb",   # R&B 계열
+    "doo-wop": "jazz_soul",             # 기존 doo-wap과 동일 계열 (정식 철자)
+    "electro funk": "synth_pop",        # 신스 기반 (Knock On Wood, sub도 synthpop)
+    "ragga": "global_dance",            # 레게/댄스홀 계열
+    "waltz": "soft_pop",                # 팝 발라드 리듬 요소 (Remember Forever)
 }
 
 FAMILY_WEIGHT = 1.5  # main(2)과 sub(1) 사이 — 같은 패밀리면 이 가중치로 교집합 기여
