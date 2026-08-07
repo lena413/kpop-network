@@ -30,6 +30,7 @@ ARTIST_COLORS = {
     "SHINee (샤이니)": "#3EE6C4",      # 새로 추가 (민트)
     "RESCENE (리센느)": "#7C4DFF",     # 새로 추가 (인디고 바이올렛)
     "Red Velvet (레드벨벳)": "#B71C4A", # 새로 추가 (딥 크림슨)
+    "BOYNEXTDOOR": "#1E90FF",
 }
 
 DEFAULT_COLOR = "#AAAAAA"
@@ -153,7 +154,11 @@ GENRE_FAMILY = {
     "waltz": "soft_pop",                # 팝 발라드 리듬 요소 (Remember Forever)
 
     # ── 신규 곡 반영 추가분 (4차) ──
-    "samba": "global_dance",            # 브라질 계열 (brazilian funk 등과 동일)
+    "samba": "global_dance",
+    "neo soul": "hip_hop_rb",
+    "urban r&b": "hip_hop_rb",
+    "swing": "disco_funk",
+    "tropical house": "electronic_dance",
 }
 
 FAMILY_WEIGHT = 1.5  # main(2)과 sub(1) 사이 — 같은 패밀리면 이 가중치로 교집합 기여

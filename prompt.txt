@@ -16,19 +16,19 @@
 
 [기본 장르 리스트]
 # Electronic Dance
-dance pop, house, deep house, uk garage, jersey club, drum & bass, breakbeat, edm, rave, electronic dance, french house, dubstep, hardstyle, melodic techno, techno, trance
+dance pop, house, deep house, uk garage, jersey club, drum & bass, breakbeat, edm, rave, electronic dance, french house, dubstep, hardstyle, melodic techno, techno, trance, tropical house
 
 # Synth / Electropop
 synthpop, new wave, hyperpop, city pop, dream pop, lo-fi, electropop, future bass
 
 # Disco / Funk
-disco, funk pop, new jack swing, miami bass, electro funk
+disco, funk pop, new jack swing, miami bass, electro funk, swing
 
 # Global Dance (라틴/아프로)
 dancehall, moombahton, reggaeton, brazilian funk, baile funk, afrobeats, latin pop, reggae pop, latin house, ragga, samba
 
 # Hip Hop / R&B
-hip hop, trap, old-school hip hop, boom bap, rage, r&b, alternative r&b, alternative hip hop, soul
+hip hop, trap, old-school hip hop, boom bap, rage, r&b, alternative r&b, alternative hip hop, soul, neo soul, urban r&b
 
 # Rock
 pop rock, hard rock, indie rock, alternative rock, emo rock, britpop, pop punk, punk rock, stadium rock, reggae rock, rock and roll, psychedelic rock, funk rock, rap rock
@@ -40,7 +40,7 @@ ballad, indie pop, alternative pop, pop, waltz
 jazz, country, orchestral, bossa nova, doo-wop
 
 [무드 리스트]
-청량, 몽환, 세련, 벅참, 강렬, 발랄, 키치, 아련, 미니멀, 게임, 섹시, 레트로, 서늘, 웅장, 힙함, 긴장, 여름, 포근
+청량, 몽환, 세련, 벅참, 강렬, 발랄, 키치, 아련, 미니멀, 게임, 섹시, 레트로, 서늘, 웅장, 힙함, 긴장, 여름, 포근, 겨울, 그루비, 서정, 쓸쓸, 희망적
 
 [출력 형식]
 main_genre: (하나)
